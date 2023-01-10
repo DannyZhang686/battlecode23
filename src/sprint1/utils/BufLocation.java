@@ -50,7 +50,9 @@ public class BufLocation {
         return new MapLocation(bufIndexToMapX[index], bufIndexToMapY[index]);
     }
 
+    // Maps a relative location (with respect to HQ) to the buffer index
     public static int mapLocationToBufIndex(MapLocation loc) {
+        // Add 5 to each coordinate to ensure indices are non-negative
         return coordsToIndex[loc.y + 5][loc.x + 5];
     }
 }

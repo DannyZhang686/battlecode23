@@ -30,6 +30,7 @@ public enum LocationType {
         return value;
     }
 
+    // Mapping from a well ResourceType to the corresponding LocationType
     public static LocationType fromWellResource(ResourceType resourceType) {
         if (resourceType == ResourceType.ADAMANTIUM) {
             return WELL_ADAM;
@@ -43,6 +44,7 @@ public enum LocationType {
         }
     }
 
+    // Mapping from an int to the corresponding LocationType
     public static LocationType fromValue(int value) {
         switch (value) {
             case 0:

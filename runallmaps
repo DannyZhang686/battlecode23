@@ -1,0 +1,4 @@
+./gradlew run -Pmaps=AllElements -PteamA=examplefuncsplayer -PteamB=sprint1 >output.txt
+./gradlew run -Pmaps=DefaultMap -PteamA=examplefuncsplayer -PteamB=sprint1 >>output.txt
+./gradlew run -Pmaps=SmallElements -PteamA=examplefuncsplayer -PteamB=sprint1 >>output.txt
+./gradlew run -Pmaps=maptestsmall -PteamA=examplefuncsplayer -PteamB=sprint1 >>output.txt
