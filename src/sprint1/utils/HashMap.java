@@ -9,9 +9,9 @@ public class HashMap<T> {
 
     public HashMap(int capacity) {
         table = (LinkedList<T>[]) new LinkedList[capacity];
-
+        
         this.capacity = capacity;
-
+        
         for (int i = capacity; --i >= 0;) {
             table[i] = new LinkedList<T>();
         }

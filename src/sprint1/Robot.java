@@ -3,8 +3,12 @@ package sprint1;
 import battlecode.common.*;
 
 public abstract class Robot {
-    
-    public Robot(RobotController rc) throws GameActionException {}
+
+    protected RobotController rc;
+
+    public Robot(RobotController rc) throws GameActionException {
+        this.rc = rc;
+    }
 
     public abstract void run() throws GameActionException;
 }
