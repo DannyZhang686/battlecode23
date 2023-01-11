@@ -64,7 +64,6 @@ public class Carrier extends Robot {
             if (this.rc.canMove(dir)) {
                 this.rc.move(dir);
             }
-
             return;
         }
 
