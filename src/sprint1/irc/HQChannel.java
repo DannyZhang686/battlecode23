@@ -134,7 +134,7 @@ public class HQChannel {
             }
 
             // Write these four locations' encoding to the array and move onto the next
-            // rc.writeSharedArray(offset++, data);
+            rc.writeSharedArray(offset++, data);
         }
     }
 

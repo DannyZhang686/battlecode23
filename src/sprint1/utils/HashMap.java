@@ -3,7 +3,6 @@ package sprint1.utils;
 public class HashMap<K, V> {
     private NewNode<K, V>[] buckets;
     private int numBuckets = 0;
-    private int mapSize = 0;
 
     public HashMap(int capacity) {
         this.buckets = (NewNode<K, V>[]) (new NewNode[capacity]);
@@ -13,12 +12,11 @@ public class HashMap<K, V> {
     public void insert(K key, V value) {
         NewNode<K, V> entry = new NewNode<>(key, value, null);
 
-        int bucket = key.hashCode() % numBuckets;
+        int bucket = Math.abs(key.hashCode()) % numBuckets;
 
         NewNode<K, V> existing = buckets[bucket];
         if (existing == null) {
             buckets[bucket] = entry;
-            mapSize++;
         } else {
             while (existing.next != null) {
                 if (existing.key.equals(key)) {
@@ -32,13 +30,12 @@ public class HashMap<K, V> {
                 existing.value = value;
             } else {
                 existing.next = entry;
-                mapSize++;
             }
         }
     }
 
     public V getOrDefault(K key, V default_value) {
-        NewNode<K, V> bucket = buckets[key.hashCode() % numBuckets];
+        NewNode<K, V> bucket = buckets[Math.abs(key.hashCode()) % numBuckets];
 
         while (bucket != null) {
             if (bucket.key.equals(key)) {

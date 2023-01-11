@@ -29,7 +29,7 @@ public class HQMap {
         for (WellInfo well : rc.senseNearbyWells()) {
             MapLocation well_location = well.getMapLocation();
             this.location_types.insert(well_location,
-                                       LocationType.fromWellResource(well.getResourceType()));
+                    LocationType.fromWellResource(well.getResourceType()));
         }
     }
 

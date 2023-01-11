@@ -9,9 +9,9 @@ public class HashSet<T> {
 
     public HashSet(int capacity) {
         table = (LinkedList<T>[]) new LinkedList[capacity];
-        
+
         this.capacity = capacity;
-        
+
         for (int i = capacity; --i >= 0;) {
             table[i] = new LinkedList<T>();
         }
