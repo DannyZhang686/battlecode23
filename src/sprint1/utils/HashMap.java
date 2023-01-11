@@ -50,4 +50,15 @@ public class HashMap<K, V> {
     public V get(K key) {
         return this.getOrDefault(key, null);
     }
+
+    // public void print() {
+    // for (int i = 0; i < numBuckets; i++) {
+    // NewNode<K, V> curr = this.buckets[i];
+
+    // while (curr != null) {
+    // System.out.println("k: " + curr.key + ", v: " + curr.value);
+    // curr = curr.next;
+    // }
+    // }
+    // }
 }

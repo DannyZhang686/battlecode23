@@ -37,7 +37,5 @@ public class Headquarters extends Robot {
     @Override
     public void run() throws GameActionException {
         this.channel.sync(this.map);
-
-        this.map.print();
     }
 }

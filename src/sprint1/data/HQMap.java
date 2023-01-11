@@ -43,14 +43,17 @@ public class HQMap {
     }
 
     public void updateLocationTypeAtBufferIndex(int buf_index, LocationType type) {
-        MapLocation offset = BufLocation.bufIndexToMaplocation(buf_index);
-        this.updateLocationTypeAtMapLocation(this.HQ_LOC.translate(offset.x, offset.y), type);
+        // Save bytecode
+        if (type != LocationType.NONE) {
+            MapLocation offset = BufLocation.bufIndexToMaplocation(buf_index);
+            this.updateLocationTypeAtMapLocation(this.HQ_LOC.translate(offset.x, offset.y), type);
+        }
     }
 
     public void updateLocationTypeAtMapLocation(MapLocation loc, LocationType type) {
-        this.location_types.insert(loc, type);
-    }
-
-    public void print() {
+        // Save bytecode
+        if (type != LocationType.NONE) {
+            this.location_types.insert(loc, type);
+        }
     }
 }
