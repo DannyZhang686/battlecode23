@@ -2,6 +2,7 @@ package sprint1;
 
 import battlecode.common.*;
 import sprint1.data.LocationType;
+import sprint1.irc.HQChannel;
 import sprint1.utils.BufLocation;
 
 public class Headquarters extends Robot {
@@ -9,18 +10,24 @@ public class Headquarters extends Robot {
     // Headquarters ID and location
     private final int HQ_ID;
     private final MapLocation HQ_LOC;
+    private final HQChannel HQ_CHANNEL;
 
     public Headquarters(RobotController rc) throws GameActionException {
         super(rc);
 
         // Take a unique HQ number from the 63rd array element,
-        //   and increment that element so the next HQ will have
-        //   a different HQ number
+        // and increment that element so the next HQ will have
+        // a different HQ number
         this.HQ_ID = rc.readSharedArray(63);
         rc.writeSharedArray(63, this.HQ_ID + 1);
 
         // Set location
         this.HQ_LOC = rc.getLocation();
+
+        // Initialize HQ Channel
+        this.HQ_CHANNEL = new HQChannel(rc, HQ_ID);
+
+        this.HQ_CHANNEL.broadcastInitState();
 
         System.out.println("I AM AT " + this.HQ_LOC.x + ", " + this.HQ_LOC.y); // DEBUG
 
@@ -35,10 +42,12 @@ public class Headquarters extends Robot {
         int[] island_indices = rc.senseNearbyIslands();
         for (int island_index : island_indices) {
             // Find the actual tiles composing each islands
-            MapLocation[] island_tiles = rc.senseNearbyIslandLocations(this.HQ_LOC, -1, island_index); // -1 seaches at max radius
+            MapLocation[] island_tiles = rc.senseNearbyIslandLocations(this.HQ_LOC, -1, island_index); // -1 seaches at
+                                                                                                       // max radius
             for (MapLocation island_tile : island_tiles) {
                 System.out.println("island location: x: " + island_tile.x + ", y: " + island_tile.y); // DEBUG
-                ltypes[BufLocation.mapLocationToBufIndex(island_tile.translate(-this.HQ_LOC.x, -this.HQ_LOC.y))] = LocationType.ISLAND;
+                ltypes[BufLocation.mapLocationToBufIndex(
+                        island_tile.translate(-this.HQ_LOC.x, -this.HQ_LOC.y))] = LocationType.ISLAND;
             }
         }
 
@@ -48,11 +57,13 @@ public class Headquarters extends Robot {
             System.out.println("well location: x: " + well.getMapLocation().x + ", y: " + well.getMapLocation().y); // DEBUG
 
             // Set this well's buffer index to this well's LocationType
-            int wellLocationBufIndex = BufLocation.mapLocationToBufIndex(well.getMapLocation().translate(-this.HQ_LOC.x, -this.HQ_LOC.y));
+            int wellLocationBufIndex = BufLocation
+                    .mapLocationToBufIndex(well.getMapLocation().translate(-this.HQ_LOC.x, -this.HQ_LOC.y));
             ltypes[wellLocationBufIndex] = LocationType.fromWellResource(well.getResourceType());
         }
 
-        // On the first turn, there's only enough space in the buffer for the first two HQs
+        // On the first turn, there's only enough space in the buffer for the first two
+        // HQs
         // So we only consider HQs 0 and 1 on this turn
         if (HQ_ID < 2) {
             int offset = HQ_ID * 28; // 0 for HQ #0, 28 for HQ #1
@@ -60,7 +71,7 @@ public class Headquarters extends Robot {
             // Write encoded location to the zeroth array slot
             rc.writeSharedArray(offset, this.HQ_LOC.x + this.HQ_LOC.y * 100); // TODO (possibly): add 10000*isFoggyAtHQ?
             offset++;
-            
+
             for (int a = 0; a < 27; a++) { // 27 = 108 / 4 = (number of viewable locations)/(locations per integer)
                 int data = 0;
                 int aTimesFour = a * 4; // Saves a few bytecodes (recomputation avoided)
@@ -100,7 +111,7 @@ public class Headquarters extends Robot {
 
         if (HQ_ID < 2) {
             int offset = HQ_ID * 28;
-            
+
             int loc_pos = rc.readSharedArray(offset++);
 
             int decodedLocX = loc_pos % 100;
@@ -133,8 +144,11 @@ public class Headquarters extends Robot {
                     existsMistakes = true;
                 }
             }
-            if (existsMistakes) throw new GameActionException(GameActionExceptionType.CANT_DO_THAT, "Encoding error detected in HQ with id " + this.HQ_ID);
-            else System.out.println("No mistakes found! :)");
+            if (existsMistakes)
+                throw new GameActionException(GameActionExceptionType.CANT_DO_THAT,
+                        "Encoding error detected in HQ with id " + this.HQ_ID);
+            else
+                System.out.println("No mistakes found! :)");
         }
     }
 
