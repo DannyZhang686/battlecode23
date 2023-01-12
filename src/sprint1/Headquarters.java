@@ -52,6 +52,11 @@ public class Headquarters extends Robot {
     @Override
     public void run() throws GameActionException {
         this.channel.sync(this.map);
+
+        if (this.rc.getRoundNum() > 4) {
+            return;
+        }
+
         tryToSpawn();
     }
 
