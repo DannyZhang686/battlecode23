@@ -10,8 +10,8 @@ public class Headquarters extends Robot {
 
     // Specification constants
     private final int actionRadius = 9;
-    private final Direction[] directions = {Direction.CENTER, Direction.NORTH, Direction.NORTHEAST, Direction.EAST,
-        Direction.SOUTHEAST, Direction.SOUTH, Direction.SOUTHWEST, Direction.WEST, Direction.NORTHWEST};
+    private final Direction[] directions = { Direction.CENTER, Direction.NORTH, Direction.NORTHEAST, Direction.EAST,
+            Direction.SOUTHEAST, Direction.SOUTH, Direction.SOUTHWEST, Direction.WEST, Direction.NORTHWEST };
 
     private final HQMap map;
     private final HQChannel channel;
@@ -73,8 +73,9 @@ public class Headquarters extends Robot {
         WellInfo[] wells = rc.senseNearbyWells(actionRadius);
 
         // TODO: Alternate between wells
-        if (wells.length > 1) {
+        if (wells.length > 0) {
             MapLocation wellLoc = wells[0].getMapLocation();
+            System.out.println("trying to place carrier on x: " + wellLoc.x + ", y: " + wellLoc.y);
             if (rc.canBuildRobot(RobotType.CARRIER, wellLoc)) {
                 rc.buildRobot(RobotType.CARRIER, wellLoc);
                 return;

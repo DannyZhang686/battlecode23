@@ -36,9 +36,8 @@ public class HashSet<T> {
     public boolean remove(T obj) {
         int index = (Math.abs(obj.hashCode())) % this.capacity;
         // contains it, remove it
-        if (table[index].contains(obj)) {
+        if (table[index].remove(obj)) {
             this.size--;
-            return table[index].remove(obj);
         }
         return false;
     }

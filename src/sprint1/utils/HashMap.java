@@ -51,6 +51,10 @@ public class HashMap<K, V> {
         return this.getOrDefault(key, null);
     }
 
+    public boolean contains(K key) {
+        return this.get(key) != null;
+    }
+
     // public void print() {
     // for (int i = 0; i < numBuckets; i++) {
     // NewNode<K, V> curr = this.buckets[i];

@@ -1,7 +1,6 @@
 package sprint1;
 
 import battlecode.common.*;
-import sprint1.utils.RobotMath;
 
 public class Launcher extends Robot {
 
@@ -124,8 +123,9 @@ public class Launcher extends Robot {
             for (RobotInfo robot : friendlyRobots) {
                 if ((((robot.ID ^ 232733) + 8008 + 135) % 6) == 0) {
                     // This robot is a leader!
-                    if (rc.canMove(RobotMath.directionTowards(this.curLocation, robot.location))) {
-                        rc.move(RobotMath.directionTowards(this.curLocation, robot.location));
+                    Direction dir = this.curLocation.directionTo(robot.location);
+                    if (rc.canMove(dir)) {
+                        rc.move(dir);
                     }
                 }
             }
@@ -151,8 +151,9 @@ public class Launcher extends Robot {
         }
         int island_index = rc.senseNearbyIslands()[0];
         MapLocation island_loc = rc.senseNearbyIslandLocations(this.curLocation, -1, island_index)[0];
-        if (rc.canMove(RobotMath.directionTowards(this.curLocation, island_loc))) {
-            rc.move(RobotMath.directionTowards(this.curLocation, island_loc));
+        Direction dir = this.curLocation.directionTo(island_loc);
+        if (rc.canMove(dir)) {
+            rc.move(dir);
         }
         return;
     }

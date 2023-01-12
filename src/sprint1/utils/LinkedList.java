@@ -1,20 +1,26 @@
 package sprint1.utils;
 
 public class LinkedList<T> {
-    public int size = 0;
+    public int size;
     public Node<T> head;
     public Node<T> end;
 
     public LinkedList() {
+        size = 0;
+        head = null;
+        end = null;
     }
 
     public void add(T obj) {
         if (end != null) {
+            assert head != null;
+
             Node<T> newNode = new Node<T>(obj);
-            newNode.prev = end;
             end.next = newNode;
             end = newNode;
         } else {
+            assert head == null;
+
             head = new Node<T>(obj);
             end = head;
         }
@@ -23,14 +29,21 @@ public class LinkedList<T> {
     }
 
     public Node<T> dequeue() {
-        if (this.size > 0) {
-            Node<T> removed = head;
-            remove(head);
-            this.size--;
-            return removed;
+        if (this.size == 0) {
+            return null;
         }
 
-        return null;
+        assert head != null;
+        assert end != null;
+
+        Node<T> removed = head;
+        if (end == head) {
+            head = end = null;
+        } else {
+            head = head.next;
+        }
+
+        return removed;
     }
 
     public boolean contains(T obj) {
@@ -46,36 +59,27 @@ public class LinkedList<T> {
         return false;
     }
 
-    public void remove(Node<T> node) {
-        if (node.prev != null) {
-            node.prev.next = node.next;
-        } else {
-            // deal with head
-            head = node.next;
-        }
-
-        if (node.next != null) {
-            node.next.prev = node.prev;
-        } else {
-            end = node.prev;
-        }
-
-        node = null;
-        size--;
-    }
-
     public boolean remove(T obj) {
         Node<T> node = head;
+        Node<T> prev = null;
 
         while (node != null) {
             if (node.val.equals(obj)) {
-                remove(node);
+                // remove
+                if (prev != null) {
+                    prev.next = node.next;
+                } else if (end == head) {
+                    head = end = null;
+                } else {
+                    head = node.next;
+                }
+
                 return true;
             }
+            prev = node;
             node = node.next;
         }
 
         return false;
     }
-
 }

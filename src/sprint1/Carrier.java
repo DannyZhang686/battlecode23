@@ -2,6 +2,7 @@ package sprint1;
 
 import battlecode.common.*;
 import sprint1.utils.RobotMath;
+import sprint1.utils.Tuple;
 
 public class Carrier extends Robot {
 
@@ -43,27 +44,29 @@ public class Carrier extends Robot {
         int amount_elix = this.rc.getResourceAmount(ResourceType.ELIXIR);
         int amount_mana = this.rc.getResourceAmount(ResourceType.MANA);
 
-        if (this.rc.canTransferResource(this.HQ_LOC, ResourceType.ADAMANTIUM, amount_adam)) {
+        if (amount_adam > 36 && this.rc.canTransferResource(this.HQ_LOC, ResourceType.ADAMANTIUM, amount_adam)) {
             this.rc.transferResource(this.HQ_LOC, ResourceType.ADAMANTIUM, amount_adam);
             amount_adam = 0;
         }
 
-        if (this.rc.canTransferResource(this.HQ_LOC, ResourceType.ELIXIR, amount_elix)) {
+        if (amount_elix > 36 && this.rc.canTransferResource(this.HQ_LOC, ResourceType.ELIXIR, amount_elix)) {
             this.rc.transferResource(this.HQ_LOC, ResourceType.ELIXIR, amount_elix);
             amount_elix = 0;
         }
 
-        if (this.rc.canTransferResource(this.HQ_LOC, ResourceType.MANA, amount_mana)) {
+        if (amount_mana > 36 && this.rc.canTransferResource(this.HQ_LOC, ResourceType.MANA, amount_mana)) {
             this.rc.transferResource(this.HQ_LOC, ResourceType.MANA, amount_mana);
             amount_mana = 0;
         }
 
-        if (amount_adam >= 36 || amount_elix >= 36 || amount_mana >= 36) {
-            Direction dir = RobotMath.directionTowards(loc, this.HQ_LOC);
+        if (amount_adam > 36 || amount_elix >= 36 || amount_mana >= 36) {
+            // Change this to pathfinding
+            Direction dir = loc.directionTo(this.HQ_LOC);
 
             if (this.rc.canMove(dir)) {
                 this.rc.move(dir);
             }
+
             return;
         }
 
@@ -71,42 +74,50 @@ public class Carrier extends Robot {
 
         if (wells.length == 0) {
             System.out.println("no wells found, sadge :(");
+            // let's explore (and not block others)
             return;
         }
 
-        WellInfo closest_well = wells[0];
+        MapLocation[] well_locations = new MapLocation[wells.length];
 
-        for (int i = 1; i < wells.length; i++) {
-            if (RobotMath.distanceBetween(loc, closest_well.getMapLocation()) > RobotMath.distanceBetween(loc,
-                    wells[i].getMapLocation())) {
-                closest_well = wells[i];
-            }
+        for (int i = 0; i < wells.length; i++) {
+            well_locations[i] = wells[i].getMapLocation();
         }
 
-        if (!RobotMath.isNextTo(loc, closest_well.getMapLocation())) {
-            Direction dir = RobotMath.directionTowards(loc, closest_well.getMapLocation());
-            if (this.rc.canMove(dir)) {
-                this.rc.move(dir);
-            }
-            return;
-        }
+        Tuple<MapLocation, Direction> closest_well = RobotMath.moveTowardsTarget(this.rc, this.rc.getLocation(),
+                well_locations);
 
-        System.out.println("next to a well, collecting ...");
+        return;
 
-        if (!this.rc.canCollectResource(closest_well.getMapLocation(), 4)) {
-            System.out.println("cannot collect?");
-            return;
-        }
+        // if (!loc.isAdjacentTo(closest_well.first)) {
+        // if (this.rc.canMove(closest_well.second)) {
+        // this.rc.move(closest_well.second);
+        // } else {
+        // System.out.println("stuck sadge :(");
+        // // do something
+        // }
+        // return;
+        // }
 
-        if (this.rc.getResourceAmount(closest_well.getResourceType()) == 36) {
-            this.rc.collectResource(closest_well.getMapLocation(), 3);
-            Direction dir = RobotMath.directionTowards(loc, this.HQ_LOC);
-            if (this.rc.canMove(dir)) {
-                this.rc.move(dir);
-            }
-            return;
-        }
+        // System.out.println("next to a well, collecting ...");
 
-        this.rc.collectResource(closest_well.getMapLocation(), 4);
+        // if (!this.rc.canCollectResource(closest_well.first, 4)) {
+        // System.out.println("cannot collect?");
+        // return;
+        // }
+
+        // WellInfo closest_well_info = this.rc.senseWell(closest_well.first);
+
+        // if (this.rc.getResourceAmount(closest_well_info.getResourceType()) == 36) {
+        // this.rc.collectResource(closest_well.first, 3);
+
+        // Direction dir = loc.directionTo(this.HQ_LOC);
+        // if (this.rc.canMove(dir)) {
+        // this.rc.move(dir);
+        // }
+        // return;
+        // }
+
+        // this.rc.collectResource(closest_well.first, 4);
     }
 }
