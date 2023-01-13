@@ -59,10 +59,11 @@ public class RobotMath {
         int best_distance = MAX_DISTANCE;
 
         for (MapLocation candidate : candidates) {
-            int dist = unit_location.distanceSquaredTo(candidate); // costs 2 bytecode
+            int dist = target.distanceSquaredTo(candidate); // costs 2 bytecode
 
             if (dist < best_distance
                     && rc.sensePassability(candidate) // costs 5 bytecode
+                    && !rc.isLocationOccupied(candidate) // 5 bytecode
             ) {
                 // get the closest candidate where we can place
                 best_distance = dist;
@@ -263,11 +264,11 @@ public class RobotMath {
     // Note for getXDirection: getDirectionOrderNum() returns orderNum + 1 (since
     // CENTER is included)
 
-    private static Direction getNextDirection(Direction dir) {
+    public static Direction getNextDirection(Direction dir) {
         return ORDERED_DIRECTIONS[Math.abs(dir.getDirectionOrderNum() - 2) % ORDERED_DIRECTIONS.length];
     }
 
-    private static Direction getPreviousDirection(Direction dir) {
+    public static Direction getPreviousDirection(Direction dir) {
         return ORDERED_DIRECTIONS[dir.getDirectionOrderNum() % ORDERED_DIRECTIONS.length];
     }
 }

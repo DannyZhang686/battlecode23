@@ -4,12 +4,15 @@ import battlecode.common.*;
 import sprint1.data.HQMap;
 import sprint1.irc.HQChannel;
 import java.util.Random;
+import sprint1.utils.RobotMath;
+
 
 public class Headquarters extends Robot {
     static final Random rng = new Random(6147);
 
     // Specification constants
     private final int actionRadius = 9;
+    private final int visionRadius = 34;
     private final Direction[] directions = { Direction.CENTER, Direction.NORTH, Direction.NORTHEAST, Direction.EAST,
             Direction.SOUTHEAST, Direction.SOUTH, Direction.SOUTHWEST, Direction.WEST, Direction.NORTHWEST };
 
@@ -53,17 +56,16 @@ public class Headquarters extends Robot {
     public void run() throws GameActionException {
         this.channel.sync(this.map);
 
-        if (this.rc.getRoundNum() > 4) {
-            return;
-        }
+//        if (this.rc.getRoundNum() > 4) {
+//            return;
+//        }
 
-        tryToSpawn();
+        if(rc.isActionReady()) tryToSpawn();
     }
 
     private void tryToSpawn() throws GameActionException {
         if (spawnedCarriers < startingCarriers) {
             tryToSpawnCarrier();
-            this.spawnedCarriers++;
         } else {
             if (rng.nextBoolean()) {
                 tryToSpawnCarrier();
@@ -74,36 +76,62 @@ public class Headquarters extends Robot {
     }
 
     private void tryToSpawnCarrier() throws GameActionException {
-        // Find wells within action radius of headquarters
-        WellInfo[] wells = rc.senseNearbyWells(actionRadius);
-
-        // TODO: Alternate between wells
-        if (wells.length > 0) {
-            MapLocation wellLoc = wells[0].getMapLocation();
-            System.out.println("trying to place carrier on x: " + wellLoc.x + ", y: " + wellLoc.y);
-            if (rc.canBuildRobot(RobotType.CARRIER, wellLoc)) {
-                rc.buildRobot(RobotType.CARRIER, wellLoc);
-                return;
-            }
-        }
-
-        // ***** need a better way to find an empty place to spawn
-        Direction dir = directions[rng.nextInt(directions.length)];
-        MapLocation newLoc = rc.getLocation().add(dir);
-        // Let's try to build a carrier.
         rc.setIndicatorString("Trying to build a carrier");
-        if (rc.canBuildRobot(RobotType.CARRIER, newLoc)) {
-            rc.buildRobot(RobotType.CARRIER, newLoc);
+        // Find wells within action radius of headquarters
+        // (only needs to be run the first time) - possible to store all wells in this HQ, distribute units between them
+        WellInfo[] wells = rc.senseNearbyWells(visionRadius);
+
+        // TODO: Choose between wells
+        if(wells.length > 0){
+            for (WellInfo well: wells){
+                MapLocation loc = RobotMath.closestActionablePlacement(rc, HQ_LOC, well.getMapLocation(), actionRadius);
+                if (loc != null && rc.canBuildRobot(RobotType.CARRIER, loc)) {
+                    rc.buildRobot(RobotType.CARRIER, loc);
+                    return;
+                }
+            }
+        }else{
+//            Direction dir = directions[rng.nextInt(directions.length)];
+//            MapLocation newLoc = rc.getLocation().add(dir);
+//            // Let's try to build a carrier.
+//            rc.setIndicatorString("Trying to build a carrier");
+//            if (rc.canBuildRobot(RobotType.CARRIER, newLoc)) {
+//                rc.buildRobot(RobotType.CARRIER, newLoc);
+//                this.spawnedCarriers++;
+//                return;
+//            }
+
+            MapLocation[] locations = rc.getAllLocationsWithinRadiusSquared(HQ_LOC, actionRadius);
+            for(MapLocation location: locations){
+                if (rc.canBuildRobot(RobotType.CARRIER, location)) {
+                    rc.buildRobot(RobotType.CARRIER, location);
+                    this.spawnedCarriers++;
+                    return;
+                }
+            }
         }
     }
 
     private void tryToSpawnLauncher() throws GameActionException {
-        Direction dir = directions[rng.nextInt(directions.length)];
-        MapLocation newLoc = rc.getLocation().add(dir);
-        // Let's try to build a launcher.
+        // TODO: Incorporate placement logic (i.e. spawn near fights)
         rc.setIndicatorString("Trying to build a launcher");
-        if (rc.canBuildRobot(RobotType.LAUNCHER, newLoc)) {
-            rc.buildRobot(RobotType.LAUNCHER, newLoc);
+
+//        Direction dir = directions[rng.nextInt(directions.length)];
+//        MapLocation newLoc = rc.getLocation().add(dir);
+//        // Let's try to build a launcher.
+//        if (rc.canBuildRobot(RobotType.LAUNCHER, newLoc)) {
+//            rc.buildRobot(RobotType.LAUNCHER, newLoc);
+//            this.spawnedLaunchers++;
+//            return;
+//        }
+
+        MapLocation[] locations = rc.getAllLocationsWithinRadiusSquared(HQ_LOC, actionRadius);
+        for(MapLocation location: locations){
+            if (rc.canBuildRobot(RobotType.LAUNCHER, location)) {
+                rc.buildRobot(RobotType.LAUNCHER, location);
+                this.spawnedLaunchers++;
+                return;
+            }
         }
     }
 }
