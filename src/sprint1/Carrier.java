@@ -1,8 +1,7 @@
 package sprint1;
 
 import battlecode.common.*;
-import sprint1.utils.RobotMath;
-import sprint1.utils.Triple;
+import sprint1.utils.*;
 
 public class Carrier extends Robot {
 
@@ -60,14 +59,20 @@ public class Carrier extends Robot {
         }
 
         if (amount_adam > 36 || amount_elix > 36 || amount_mana > 36) {
-            // Change this to pathfinding
+            System.out.println("Move back home");
+            // TODO: find a way home when friendly robots are blocking path
+
             Direction dir = loc.directionTo(this.HQ_LOC);
-
-            if (this.rc.canMove(dir)) {
-                this.rc.move(dir);
+            for (int i = 0; i < 8; i++) {
+                if (this.rc.canMove(dir)) {
+                    this.rc.move(dir);
+                    return;
+                }
+                dir = RobotMath.getNextDirection(dir);
             }
-
+            System.out.println("want to go home but stuck :(");
             return;
+            // BFS with moveTowardTargetSlow would hit bytecode limit, so we can't use that
         }
 
         WellInfo[] wells = this.rc.senseNearbyWells();
@@ -110,15 +115,19 @@ public class Carrier extends Robot {
 
         System.out.println("next to a well, collecting ...");
 
-        if (!this.rc.canCollectResource(closest_well.first, 4)) {
-            System.out.println("cannot collect?");
-            return;
-        }
-
         WellInfo closest_well_info = this.rc.senseWell(closest_well.first);
 
+        int collect_amount = Math.min(closest_well_info.getRate(), GameConstants.CARRIER_CAPACITY - this.rc.getWeight());
+        // do I even need to do the CAP-getWeight calculation?
+
         if (this.rc.getResourceAmount(closest_well_info.getResourceType()) == 36) {
-            this.rc.collectResource(closest_well.first, 3);
+            collect_amount = Math.min(collect_amount , 3);
+            if (!this.rc.canCollectResource(closest_well.first, collect_amount)) {
+                System.out.println("cannot collect?");
+                return;
+            }
+
+            this.rc.collectResource(closest_well.first, collect_amount);
 
             Direction dir = loc.directionTo(this.HQ_LOC);
             if (this.rc.canMove(dir)) {
@@ -127,6 +136,13 @@ public class Carrier extends Robot {
             return;
         }
 
-        this.rc.collectResource(closest_well.first, 4);
+        // we can only take up to 4 per term? Idk. I haven't check documentation
+        collect_amount = Math.min(collect_amount , 4);
+        if (!this.rc.canCollectResource(closest_well.first, collect_amount)) {
+            System.out.println("cannot collect?");
+            return;
+        }
+
+        this.rc.collectResource(closest_well.first, collect_amount);
     }
 }

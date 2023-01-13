@@ -264,11 +264,11 @@ public class RobotMath {
     // Note for getXDirection: getDirectionOrderNum() returns orderNum + 1 (since
     // CENTER is included)
 
-    private static Direction getNextDirection(Direction dir) {
+    public static Direction getNextDirection(Direction dir) {
         return ORDERED_DIRECTIONS[Math.abs(dir.getDirectionOrderNum() - 2) % ORDERED_DIRECTIONS.length];
     }
 
-    private static Direction getPreviousDirection(Direction dir) {
+    public static Direction getPreviousDirection(Direction dir) {
         return ORDERED_DIRECTIONS[dir.getDirectionOrderNum() % ORDERED_DIRECTIONS.length];
     }
 }
