@@ -3,12 +3,9 @@ package sprint1;
 import battlecode.common.*;
 import sprint1.data.HQMap;
 import sprint1.irc.HQChannel;
-import java.util.Random;
 import sprint1.utils.RobotMath;
 
-
 public class Headquarters extends Robot {
-    static final Random rng = new Random(6147);
 
     // Specification constants
     private final int actionRadius = 9;
