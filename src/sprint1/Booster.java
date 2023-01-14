@@ -10,5 +10,6 @@ public class Booster extends Robot {
 
     @Override
     public void run() throws GameActionException {
+        runSetup();
     }
 }

@@ -18,7 +18,17 @@ public class Constants {
                         Direction.NORTHWEST,
         };
 
-        public static final int[][] BFSDeltas35 = { { 0, 0 }, { -1, 0 }, { 0, -1 }, { 0, 1 }, { 1, 0 }, { -1, -1 },
+        public static int[][] reverseArray(int[][] array) {
+                int[][] ret = new int[array.length][array[0].length];
+                for (int i = 0; i < ret.length; i++) {
+                        for (int j = 0; j < array[0].length; j++)
+                                ret[ret.length - 1 - i][j] = array[i][j];
+                }
+                return ret;
+        }
+
+        public static final int[][] BFSDeltas35 = {
+                        { 0, 0 }, { -1, 0 }, { 0, -1 }, { 0, 1 }, { 1, 0 }, { -1, -1 },
                         { -1, 1 }, { 1, -1 }, { 1, 1 }, { -2, 0 }, { 0, -2 }, { 0, 2 }, { 2, 0 }, { -2, -1 }, { -2, 1 },
                         { -1, -2 }, { -1, 2 }, { 1, -2 }, { 1, 2 }, { 2, -1 }, { 2, 1 }, { -2, -2 }, { -2, 2 },
                         { 2, -2 }, { 2, 2 }, { -3, 0 }, { 0, -3 }, { 0, 3 }, { 3, 0 }, { -3, -1 }, { -3, 1 },
@@ -31,11 +41,12 @@ public class Constants {
                         { -5, -1 }, { -5, 1 }, { -1, -5 }, { -1, 5 }, { 1, -5 }, { 1, 5 }, { 5, -1 }, { 5, 1 },
                         { -5, -2 }, { -5, 2 }, { -2, -5 }, { -2, 5 }, { 2, -5 }, { 2, 5 }, { 5, -2 }, { 5, 2 },
                         { -4, -4 }, { -4, 4 }, { 4, -4 }, { 4, 4 }, { -5, -3 }, { -5, 3 }, { -3, -5 }, { -3, 5 },
-                        { 3, -5 }, { 3, 5 }, { 5, -3 }, { 5, 3 } };;
-        // public static final int[][] BFSDeltas35PathLength = {0, 1, 1, 1, 1, 4, 2, 4,
-        // 2, 4, 2, 4, 2, 9, ...};
+                        { 3, -5 }, { 3, 5 }, { 5, -3 }, { 5, 3 } };
 
-        public static final int[][] BFSDeltas24 = { { 0, 0 }, { 1, 0 }, { 0, -1 }, { -1, 0 }, { 0, 1 }, { 2, 0 },
+        public static final int[][] BFSDeltas35Reversed = reverseArray(BFSDeltas35);
+
+        public static final int[][] BFSDeltas24 = {
+                        { 0, 0 }, { 1, 0 }, { 0, -1 }, { -1, 0 }, { 0, 1 }, { 2, 0 },
                         { 1, -1 },
                         { 0, -2 }, { -1, -1 }, { -2, 0 }, { -1, 1 }, { 0, 2 }, { 1, 1 }, { 3, 0 }, { 2, -1 }, { 1, -2 },
                         { 0, -3 },

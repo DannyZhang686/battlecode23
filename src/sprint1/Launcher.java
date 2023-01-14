@@ -1,7 +1,6 @@
 package sprint1;
 
 import battlecode.common.*;
-import sprint1.utils.*;
 import sprint1.data.*;
 
 public class Launcher extends Robot {
@@ -22,7 +21,7 @@ public class Launcher extends Robot {
     // leaders are found nearby
     HQLauncherOrder hqOrder;
     MapLocation hqTargetLocation; // A location referenced by hqOrder
-    final boolean isLeader;
+    boolean isLeader;
     int followingCarrierID; // Specifically for the ESCORT_CARRIERS order
 
     // When the number of *offensive* enemies (launchers/destabilizers)
@@ -59,30 +58,19 @@ public class Launcher extends Robot {
 
     @Override
     public void run() throws GameActionException {
-        rc.setIndicatorString(isLeader ? "L" : "F");
+        runSetup();
 
-        if (rc.getRoundNum() > 10) {
-            return;
-        }
+        // rc.setIndicatorString(isLeader ? "L" : "F");
 
         this.curLocation = rc.getLocation();
         // Check for new macro instructions, then try to shoot, then try to move
-        checkForInstructions();
+        // TODO: Integer macro_instruction = HQ_CONSUMER.getUnitCommand(rc.getID());
 
         // enemyRobots is used by both tryToShoot and tryToMove
         enemyRobots = rc.senseNearbyRobots(16, enemyTeam);
         friendlyRobots = rc.senseNearbyRobots(-1, friendlyTeam);
         tryToShoot();
         tryToMove();
-    }
-
-    private void checkForInstructions() throws GameActionException {
-        // Read every slot of the shared array
-        int[] sharedArrayContents = new int[64];
-        for (int i = 0; i < 64; i++) {
-            sharedArrayContents[i] = rc.readSharedArray(i);
-        }
-        // TODO: Interpret sharedArrayContents, possibly update orders
     }
 
     private void tryToShoot() throws GameActionException {
@@ -180,10 +168,34 @@ public class Launcher extends Robot {
         }
         // Else, the robot can move
 
+        // STOP_MOVING checks
+        // TODO (post-sprint1): add more checks for the launcher to STOP_MOVING
+        // ex. on (enemy/any) island
+        // Can also add checks to rescind STOP_MOVING order
+
+        // This check shouldn't overrule direct HQ orders
+        if (hqOrder != HQLauncherOrder.MASS_ASSAULT_LOCATION) {
+            for (RobotInfo robot : enemyRobots) {
+                // Sitting right next to enemy headquarters (spawn camping)
+                if ((robot.type == RobotType.HEADQUARTERS) &&
+                        (curLocation.isWithinDistanceSquared(robot.location, 20))) {
+                    hqOrder = HQLauncherOrder.MASS_ASSAULT_LOCATION;
+                    hqTargetLocation = robot.location;
+                    break;
+                }
+
+                // if (robot.type == RobotType.HEADQUARTERS) &&
+                // (curLocation.isWithinDistanceSquared(robot.location, 20))) {
+                // hqOrder = HQLauncherOrder.STOP_MOVING;
+                // break;
+                // }
+            }
+        }
+
         relaxedPathfinding = false; // By default
 
         // If not a leader, try to follow a leader
-        if (!this.isLeader) {
+        if (!this.isLeader && hqOrder != HQLauncherOrder.MASS_ASSAULT_LOCATION) {
             MapLocation[] leaderLocations = new MapLocation[friendlyRobots.length];
             int numLeaders = 0;
 
@@ -237,6 +249,9 @@ public class Launcher extends Robot {
                     // logic and move randomly
                     curMovementTarget = curLocation;
                 }
+                // Special logic for keeping carriers safe
+                curMovementTarget = new MapLocation((curMovementTarget.x + rc.getMapWidth() / 2) / 2,
+                        (curMovementTarget.y + rc.getMapHeight() / 2) / 2);
             } else if ((hqOrder == HQLauncherOrder.HOLD_LOCATION) ||
                     (hqOrder == HQLauncherOrder.MASS_ASSAULT_LOCATION)) {
                 // Note that these orders mean the same thing, "go somewhere"
@@ -248,23 +263,6 @@ public class Launcher extends Robot {
                     // curMovementTarget should be either hqLocation or hqTargetLocation
                     // We want to set it to whichever one it is not
                     curMovementTarget = (curMovementTarget == hqTargetLocation) ? hqLocation : hqTargetLocation;
-                }
-            }
-        }
-
-        // STOP_MOVING checks
-        // TODO (post-sprint1): add more checks for the launcher to STOP_MOVING
-        // ex. on (enemy/any) island
-        // Can also add checks to rescind STOP_MOVING order
-
-        // This check shouldn't overrule direct HQ orders
-        if (hqOrder == HQLauncherOrder.MASS_ASSAULT_LOCATION) {
-            for (RobotInfo robot : enemyRobots) {
-                // Sitting right next to enemy headquarters (spawn camping)
-                if ((robot.type == RobotType.HEADQUARTERS) &&
-                        (curLocation.isWithinDistanceSquared(robot.location, 2))) {
-                    hqOrder = HQLauncherOrder.STOP_MOVING;
-                    break;
                 }
             }
         }
@@ -286,19 +284,8 @@ public class Launcher extends Robot {
                     rc.move(moveableDirections[rng.nextInt(numMoveableDirections)]);
                 }
             } else {
-                // TODO: pathfind to curMovementTarget
-                // Triple<MapLocation, Direction, Direction> path =
-                // RobotMath.moveTowardsTarget(this.rc,
-                // this.rc.getLocation(),
-                // new MapLocation[] { curMovementTarget });
-
-                // if (path == null) {
-                // return;
-                // }
-
-                // if (rc.canMove(path.second)) {
-                // rc.move(path.second);
-                // }
+                // Pathfind to curMovementTarget
+                moveTowardsTarget(curMovementTarget);
             }
         }
     }

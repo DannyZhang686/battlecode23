@@ -44,7 +44,8 @@ public class Headquarters extends Robot {
 
         // Set location
         this.HQ_LOC = rc.getLocation();
-        System.out.println("HQ #" + this.HQ_ID + " IS AT " + this.HQ_LOC.x + ", " + this.HQ_LOC.y); // DEBUG
+        // System.out.println("HQ #" + this.HQ_ID + " IS AT " + this.HQ_LOC.x + ", " +
+        // this.HQ_LOC.y); // DEBUG
 
         // Initialize HQ Channel
         this.irw_writer = new IrcWriter(this.HQ_LOC, rc, HQ_ID);
@@ -58,11 +59,9 @@ public class Headquarters extends Robot {
 
     @Override
     public void run() throws GameActionException {
-        this.irw_writer.sync(this.map);
+        runSetup();
 
-        // if (this.rc.getRoundNum() > 4) {
-        // return;
-        // }
+        this.irw_writer.sync(this.map);
 
         if (rc.isActionReady())
             tryToSpawn();
@@ -73,18 +72,24 @@ public class Headquarters extends Robot {
             tryToSpawnCarrier();
         } else {
             // check if has enough resources
-            // judge by ratio to determine
-            if (rc.getResourceAmount(ResourceType.ADAMANTIUM) >= CARRIER_COST_AD) {
-                tryToSpawnCarrier();
-            }
+            // judge by ratio to determine which to try to spawn first
+            // and also how we avoid overpopulation
+            // and also create carriers that prioritize some ratio
             if (rc.getResourceAmount(ResourceType.MANA) >= LAUNCHER_COST_MN) {
                 tryToSpawnLauncher();
+                System.out.println("next to a well, collecting ...");
+            }
+
+            if (rc.getResourceAmount(ResourceType.ADAMANTIUM) >= 2 * CARRIER_COST_AD) {
+                tryToSpawnCarrier();
             }
         }
     }
 
+    private static final int[][] farPlaces = { { 3, 2 }, { 3, 1 }, { 3, 0 }, { 2, 2 }, { 2, 1 }, { 2, 0 }, { 1, 1 },
+            { 1, 0 } };
+
     private void tryToSpawnCarrier() throws GameActionException {
-        rc.setIndicatorString("Trying to build a carrier");
         // Find wells within action radius of headquarters
         // (only needs to be run the first time) - possible to store all wells in this
         // HQ, distribute units between them
@@ -102,10 +107,19 @@ public class Headquarters extends Robot {
                 }
             }
         } else {
-            // Direction dir = directions[rng.nextInt(directions.length)];
-            // MapLocation newLoc = rc.getLocation().add(dir);
-
             MapLocation[] locations = rc.getAllLocationsWithinRadiusSquared(HQ_LOC, ACTION_RADIUS);
+            // first try to spawn in far places
+            for (int i = 0; i < farPlaces.length; i++) {
+                int j = rng.nextInt(2); // 0 or 1
+                int dx = farPlaces[i][j] * (rng.nextBoolean() ? 1 : -1);
+                int dy = farPlaces[i][1 - j] * (rng.nextBoolean() ? 1 : -1);
+                MapLocation location = rc.getLocation().translate(dx, dy);
+                if (rc.canBuildRobot(RobotType.CARRIER, location)) {
+                    rc.buildRobot(RobotType.CARRIER, location);
+                    this.spawnedCarriers++;
+                    return;
+                }
+            }
             for (MapLocation location : locations) {
                 if (rc.canBuildRobot(RobotType.CARRIER, location)) {
                     rc.buildRobot(RobotType.CARRIER, location);
@@ -118,9 +132,9 @@ public class Headquarters extends Robot {
 
     private void tryToSpawnLauncher() throws GameActionException {
         // TODO: Incorporate placement logic (i.e. spawn near fights)
-        rc.setIndicatorString("Trying to build a launcher");
 
         MapLocation[] locations = rc.getAllLocationsWithinRadiusSquared(HQ_LOC, VISION_RADIUS);
+        // TODO: change this to prefer spawning further squares?
         for (MapLocation location : locations) {
             if (rc.canBuildRobot(RobotType.LAUNCHER, location)) {
                 rc.buildRobot(RobotType.LAUNCHER, location);

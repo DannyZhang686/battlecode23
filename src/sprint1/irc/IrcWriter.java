@@ -31,7 +31,7 @@ public class IrcWriter {
     // Return value indicates if state is fully synced
     private boolean broadcastInitState(HQMap map) throws GameActionException {
         if (DONE_INIT_STATE_SYNC) {
-            System.out.println("this shouldn't be called if state sync is done!");
+            // System.out.println("this shouldn't be called if state sync is done!");
             return true;
         }
 
