@@ -6,14 +6,14 @@ import battlecode.common.RobotController;
 import sprint1.data.HQMap;
 import sprint1.data.LocationType;
 
-public class HQChannel {
+public class IrcWriter {
     private final MapLocation HQ_LOC;
     private final RobotController rc;
     private final int HQ_ID;
     private boolean AT_MOST_TWO_HQ;
     private boolean DONE_INIT_STATE_SYNC;
 
-    public HQChannel(MapLocation HQ_LOC, RobotController rc, int HQ_ID) {
+    public IrcWriter(MapLocation HQ_LOC, RobotController rc, int HQ_ID) {
         this.HQ_LOC = HQ_LOC;
         this.rc = rc;
         this.HQ_ID = HQ_ID;
@@ -25,6 +25,7 @@ public class HQChannel {
         if (!this.DONE_INIT_STATE_SYNC) {
             this.DONE_INIT_STATE_SYNC = this.broadcastInitState(map);
         }
+
     }
 
     // Return value indicates if state is fully synced

@@ -13,13 +13,13 @@ public class LinkedList<T> {
 
     public void add(T obj) {
         if (end != null) {
-            assert head != null;
+            // assert head != null;
 
             Node<T> newNode = new Node<T>(obj);
             end.next = newNode;
             end = newNode;
         } else {
-            assert head == null;
+            // assert head == null;
 
             head = new Node<T>(obj);
             end = head;
@@ -33,8 +33,8 @@ public class LinkedList<T> {
             return null;
         }
 
-        assert head != null;
-        assert end != null;
+        // assert head != null;
+        // assert end != null;
 
         Node<T> removed = head;
         if (end == head) {

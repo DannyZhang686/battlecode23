@@ -1,4 +1,7 @@
-package sprint1;
+package sprint1.data;
+
+import battlecode.common.GameActionException;
+import battlecode.common.GameActionExceptionType;
 
 public enum HQLauncherOrder {
     // ESCORT_CARRIERS: follow carriers around, prioritizing
@@ -32,5 +35,23 @@ public enum HQLauncherOrder {
 
     public int getValue() {
         return value;
+    }
+
+    public static HQLauncherOrder fromValue(int value) throws GameActionException {
+        switch (value) {
+            case 0:
+                return HQLauncherOrder.ESCORT_CARRIERS;
+            case 1:
+                return HQLauncherOrder.HOLD_LOCATION;
+            case 2:
+                return HQLauncherOrder.MASS_ASSAULT_LOCATION;
+            case 3:
+                return HQLauncherOrder.PATROL_PATH_TO_LOCATION;
+            case 4:
+                return HQLauncherOrder.STOP_MOVING;
+            default:
+                throw new GameActionException(GameActionExceptionType.INTERNAL_ERROR,
+                        "Invalid launcher fromValue call");
+        }
     }
 }
