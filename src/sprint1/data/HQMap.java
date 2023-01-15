@@ -1,7 +1,7 @@
 package sprint1.data;
 
-import sprint1.utils.HashMap;
 import battlecode.common.GameActionException;
+import battlecode.common.GameConstants;
 import battlecode.common.MapLocation;
 import battlecode.common.RobotController;
 import battlecode.common.WellInfo;
@@ -9,11 +9,15 @@ import sprint1.utils.BufLocation;
 
 public class HQMap {
     private final MapLocation HQ_LOC;
-    private final HashMap<MapLocation, LocationType> location_types;
+    private final MapLocation[] HQ_OTHER_LOCS;
+    private int HQ_OTHER_COUNT;
+    private final LocationType[][] location_types;
 
     public HQMap(MapLocation HQ_LOC, RobotController rc) throws GameActionException {
         this.HQ_LOC = HQ_LOC;
-        this.location_types = new HashMap<MapLocation, LocationType>(1024);
+        this.HQ_OTHER_LOCS = new MapLocation[3];
+        this.HQ_OTHER_COUNT = 0;
+        this.location_types = new LocationType[GameConstants.MAP_MAX_WIDTH][GameConstants.MAP_MAX_HEIGHT];
 
         // Loop through each visible island index
         for (int island_index : rc.senseNearbyIslands()) {
@@ -22,14 +26,14 @@ public class HQMap {
             MapLocation[] indexed_island_locations = rc.senseNearbyIslandLocations(this.HQ_LOC, -1, island_index);
 
             for (MapLocation island_location : indexed_island_locations) {
-                this.location_types.insert(island_location, LocationType.ISLAND);
+                this.location_types[island_location.x][island_location.y] = LocationType.ISLAND;
             }
         }
 
         for (WellInfo well : rc.senseNearbyWells()) {
             MapLocation well_location = well.getMapLocation();
-            this.location_types.insert(well_location,
-                    LocationType.fromWellResource(well.getResourceType()));
+            this.location_types[well_location.x][well_location.y] = LocationType
+                    .fromWellResource(well.getResourceType());
         }
     }
 
@@ -39,7 +43,20 @@ public class HQMap {
     }
 
     public LocationType getLocationTypeAtMapLocation(MapLocation loc) {
-        return this.location_types.getOrDefault(loc, LocationType.NONE);
+        int locx = loc.x;
+        int locy = loc.y;
+
+        if (locx < 0 || locy < 0 || locx >= GameConstants.MAP_MAX_WIDTH || locy >= GameConstants.MAP_MAX_HEIGHT) {
+            return LocationType.NONE;
+        }
+
+        LocationType type = this.location_types[locx][locy];
+
+        if (type == null) {
+            return LocationType.NONE;
+        }
+
+        return type;
     }
 
     public void updateLocationTypeAtBufferIndex(int buf_index, LocationType type) {
@@ -51,9 +68,19 @@ public class HQMap {
     }
 
     public void updateLocationTypeAtMapLocation(MapLocation loc, LocationType type) {
-        // Save bytecode
-        if (type != LocationType.NONE) {
-            this.location_types.insert(loc, type);
+        int locx = loc.x;
+        int locy = loc.y;
+
+        if (locx < 0 || locy < 0 || locx >= GameConstants.MAP_MAX_WIDTH || locy >= GameConstants.MAP_MAX_HEIGHT) {
+            return;
         }
+
+        this.location_types[locx][locy] = type;
+    }
+
+    public void addOtherHq(MapLocation hq_loc) {
+        assert HQ_OTHER_COUNT < 3;
+
+        HQ_OTHER_LOCS[HQ_OTHER_COUNT++] = hq_loc;
     }
 }

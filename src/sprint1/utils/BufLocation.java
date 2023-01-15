@@ -47,6 +47,8 @@ public class BufLocation {
     };
 
     public static MapLocation bufIndexToMaplocation(int index) {
+        assert index >= 0 && index < 128;
+        
         return new MapLocation(bufIndexToMapX[index], bufIndexToMapY[index]);
     }
 

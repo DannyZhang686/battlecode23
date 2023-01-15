@@ -5,118 +5,171 @@ import battlecode.common.MapLocation;
 import battlecode.common.RobotController;
 import sprint1.data.HQMap;
 import sprint1.data.LocationType;
+import sprint1.utils.Tuple;
 
 public class IrcWriter {
     private final MapLocation HQ_LOC;
     private final RobotController rc;
     private final int HQ_ID;
-    private boolean AT_MOST_TWO_HQ;
-    private boolean DONE_INIT_STATE_SYNC;
+    private int HQ_COUNT;
 
-    public IrcWriter(MapLocation HQ_LOC, RobotController rc, int HQ_ID) {
-        this.HQ_LOC = HQ_LOC;
-        this.rc = rc;
-        this.HQ_ID = HQ_ID;
-        this.AT_MOST_TWO_HQ = false;
-        this.DONE_INIT_STATE_SYNC = false;
+    private boolean DONE_INIT_STATE_SYNC;
+    private int buffer_head;
+
+    public IrcWriter(MapLocation hq_loc, RobotController rc_, int hq_id) throws GameActionException {
+        HQ_LOC = hq_loc;
+        rc = rc_;
+        HQ_ID = hq_id;
+        HQ_COUNT = 0;
+
+        DONE_INIT_STATE_SYNC = false;
+        buffer_head = IrcConstants.IRC_BUFFER_START;
+
+        // +1 to prevent (0,0) HQ
+        rc.writeSharedArray(HQ_ID, 1 + HQ_LOC.x + HQ_LOC.y * 64);
     }
 
     public void sync(HQMap map) throws GameActionException {
-        if (!this.DONE_INIT_STATE_SYNC) {
-            this.DONE_INIT_STATE_SYNC = this.broadcastInitState(map);
+        if (!DONE_INIT_STATE_SYNC) {
+            DONE_INIT_STATE_SYNC = broadcastInitState(map);
+        } else { // keep this an else, need to wait for rest of HQ to finish as well :)
+            syncBufferEvents(map);
         }
-
     }
 
     // Return value indicates if state is fully synced
     private boolean broadcastInitState(HQMap map) throws GameActionException {
-        if (DONE_INIT_STATE_SYNC) {
-            // System.out.println("this shouldn't be called if state sync is done!");
-            return true;
-        }
+        assert !DONE_INIT_STATE_SYNC;
 
         int current_round = rc.getRoundNum();
 
         if (current_round == 1) {
             // First round
             // On the first turn, there's only enough space in the buffer for the first
-            // two HQs, so we only consider HQs 0 and 1 on this turn
+            // two HQs, so HQ 0 and HQ 1 write, 2 and 3 read
 
-            if (HQ_ID >= 2) {
-                return false;
+            if (HQ_ID > 0) {
+                this.updateHqMapWithOffset(map, 4); // HQ 0 data
             }
 
-            int offset = HQ_ID * 28; // 0 for HQ #0, 28 for HQ #1
+            if (HQ_ID > 1) {
+                this.updateHqMapWithOffset(map, 32); // HQ 1 data
+            }
 
-            this.writeHqMapWithOffset(map, offset);
+            if (HQ_ID < 2) {
+                // 4 for HQ #0, 32 for HQ #1
+                int offset = 4 + HQ_ID * 28;
+
+                this.writeHqMapWithOffset(map, offset);
+            }
 
         } else if (current_round == 2) {
             // Second round
-            // Read in all the data on the buffer (but don't read your own)
-            // Except if there's at most 2 HQs, then just finish
+            // Get HQ Count
 
-            int hq_count = rc.readSharedArray(63);
-
-            if (hq_count == 1) {
-                this.clearBuffer(0, 64);
-                return true;
-            }
-
-            this.AT_MOST_TWO_HQ = rc.readSharedArray(63) == 2;
-
-            if (HQ_ID != 0) {
-                this.updateHqMapWithOffset(map, 0);
-            } else if (HQ_ID != 1) {
-                this.updateHqMapWithOffset(map, 28);
-            }
-
-            if (this.AT_MOST_TWO_HQ) {
-                if (HQ_ID == 0) {
-                    // Clear the HQ #1's data
-                    this.clearBuffer(28, 64);
-                    // Above also clears last bit to indicate empty
-                    // Doesn't change logic since AT_MOST_TWO_HQ is boolean <= 2
+            for (int i = 0; i < 4; i++) {
+                if (rc.readSharedArray(i) != 0) {
+                    HQ_COUNT++;
                 } else {
-                    // Clear the HQ #2's data
-                    this.clearBuffer(0, 28);
+                    break;
                 }
+            }
 
+            if (HQ_COUNT == 1) {
+                this.clearBuffer(4, 64);
                 return true;
             }
+
+            if (HQ_ID == 0) {
+                this.clearBuffer(4, 32);
+                this.updateHqMapWithOffset(map, 32);
+            }
+
+            if (HQ_ID == 1) {
+                // make 1 do this for cheaper bytecode on 0
+                this.clearBuffer(32, 64);
+            }
+
+            if (HQ_COUNT == 2) {
+                return true;
+            }
+
+            if (HQ_ID >= 2) {
+                // 4 for HQ #2, 32 for HQ #3
+                int offset = 4 + (HQ_ID - 2) * 28;
+
+                this.writeHqMapWithOffset(map, offset);
+            }
+
+            if (HQ_ID == 3) {
+                this.updateHqMapWithOffset(map, 4);
+            }
+
         } else if (current_round == 3) {
             // Third round
-            // Same as first round, but now it's HQs 2 and 3
-            // This should only run if there's more than 2 HQs
+
             if (HQ_ID < 2) {
-                return false;
+                this.updateHqMapWithOffset(map, 4);
             }
 
-            int offset = (HQ_ID - 2) * 28; // 0 for HQ #2, 28 for HQ #3
-
-            this.writeHqMapWithOffset(map, offset);
-        } else if (current_round == 4) {
-            // Fourth round
-            // Read in all the data on the buffer (but don't read your own)
-
-            if (HQ_ID != 2) {
-                this.updateHqMapWithOffset(map, 0);
-            } else if (HQ_ID != 3) {
-                this.updateHqMapWithOffset(map, 28);
+            if (HQ_ID < 3) {
+                this.updateHqMapWithOffset(map, 32);
             }
-        } else if (current_round == 5) {
-            // Fifth round
-            // Clear buffers!
 
-            if (HQ_ID == 2) {
-                this.clearBuffer(0, 28);
-            } else if (HQ_ID == 3) {
-                this.clearBuffer(28, 64);
+            if (HQ_ID == 3) {
+                this.clearBuffer(4, 64);
             }
 
             return true;
         }
 
         return false;
+    }
+
+    private void syncBufferEvents(HQMap map) throws GameActionException {
+        while (true) {
+            assert buffer_head >= IrcConstants.IRC_BUFFER_START && buffer_head < IrcConstants.IRC_BUFFER_END;
+
+            int data = rc.readSharedArray(buffer_head);
+
+            if (data == 0) {
+                break;
+            }
+
+            int event_hq_id = data % 2;
+            data /= 2;
+
+            IrcEvent event = IrcEvent.fromValue(data % IrcEvent.IRC_EVENT_BITS);
+            data /= IrcEvent.IRC_EVENT_BITS;
+
+            switch (event) {
+                case BROADCAST_LOCATION_TYPE:
+                    Tuple<MapLocation, LocationType> tuple = IrcEvent.parseBroadcastLocationType(data);
+                    map.updateLocationTypeAtMapLocation(tuple.first, tuple.second);
+            }
+
+            if (event_hq_id == HQ_ID) {
+                // Can clear data now
+                rc.writeSharedArray(buffer_head, 0);
+            }
+
+            buffer_head = (buffer_head == IrcConstants.IRC_BUFFER_END - 1) ? IrcConstants.IRC_BUFFER_START
+                    : buffer_head + 1;
+        }
+    }
+
+    public void writeBufferEvent(IrcEvent event, int data) throws GameActionException {
+        // TODO: Don't do this, use a queue to save for next turn
+        assert rc.readSharedArray(buffer_head) == 0;
+
+        data *= IrcEvent.IRC_EVENT_BITS;
+        data += event.getValue();
+
+        data *= 2;
+        data += HQ_ID;
+
+        rc.writeSharedArray(buffer_head, data);
+        buffer_head++;
     }
 
     private void writeHqMapWithOffset(HQMap map, int offset) throws GameActionException {
@@ -145,7 +198,7 @@ public class IrcWriter {
         int decoded_x = encoded_hq_location % 100;
         int decoded_y = encoded_hq_location / 100;
 
-        MapLocation hq_location = new MapLocation(decoded_x, decoded_y);
+        map.addOtherHq(new MapLocation(decoded_x, decoded_y));
 
         for (int a = 0; a < 27; a++) {
             int data = rc.readSharedArray(offset + a);
@@ -158,7 +211,9 @@ public class IrcWriter {
         }
     }
 
-    private void clearBuffer(int start, int end) {
-
+    private void clearBuffer(int start, int end) throws GameActionException {
+        for (int i = start; i < end; i++) {
+            rc.writeSharedArray(i, 0);
+        }
     }
 }

@@ -21,8 +21,17 @@ public class Launcher extends Robot {
     // leaders are found nearby
     HQLauncherOrder hqOrder;
     MapLocation hqTargetLocation; // A location referenced by hqOrder
-    boolean isLeader;
     int followingCarrierID; // Specifically for the ESCORT_CARRIERS order
+
+    // For the clumping functionality
+    int leaderPriority;
+    int followingLauncherID;
+
+    // For random movement to go in the same direction for multiple turns
+    Direction randomDirection = Direction.CENTER;
+    int turnsRemaining = 0;
+    // Number of turns for which to stick with the same direction
+    public static final int MAX_TURNS_REMAINING = 5;
 
     // When the number of *offensive* enemies (launchers/destabilizers)
     // in range is not above this value, launchers target other launchers
@@ -31,36 +40,34 @@ public class Launcher extends Robot {
     // target boosters over other launchers
     public static final int TARGET_LAUNCHERS_FIRST_ENEMY_THRESHOLD = 5;
 
-    // 1/LAUNCHER_LEADER_PROPORTION of all launchers are leaders
-    public static final int LAUNCHER_LEADER_PROPORTION = 2;
+    // leaderPriority can only be in [0, MAX_LEADER_PRIORITY)
+    // (to prevent one giant clump of launchers from forming)
+    public static final int MAX_LEADER_PRIORITY = 10;
 
     // If relaxedPathfinding is true, being <= RELAXED_PATHFINDING_DISTANCE
     // units from the target is considered equivalent to being at the target
     // Note that relaxedPathfinding is only true when either following a leader
-    // (i.e. don't crowd the leader) or patrolling a path (i.e. 5 units is
-    // close enough to the target)
-    public static final int RELAXED_PATHFINDING_DISTANCE = 5;
+    // (i.e. don't crowd the leader) or patrolling a path
+    public static final int RELAXED_PATHFINDING_DISTANCE = 2;
 
     public Launcher(RobotController rc) throws GameActionException {
         super(rc);
         // TODO: Properly initialize hqOrder by reading from shared array
         // Note: need to set curMovementTarget if order is to PATROL_PATH_TO_LOCATION
-        if (true) {
-            hqOrder = HQLauncherOrder.ESCORT_CARRIERS;
-        }
+        hqOrder = HQLauncherOrder.ESCORT_CARRIERS;
         curLocation = rc.getLocation();
         hqLocation = new MapLocation(0, 0); // TODO: initialize HQ location properly
-        followingCarrierID = -1;
+        followingCarrierID = followingLauncherID = -1;
         friendlyTeam = rc.getTeam();
         enemyTeam = this.friendlyTeam == Team.A ? Team.B : Team.A;
-        isLeader = isLeader(rc.getID());
+        leaderPriority = getLeaderPriority(rc.getID());
     }
 
     @Override
     public void run() throws GameActionException {
         runSetup();
 
-        // rc.setIndicatorString(isLeader ? "L" : "F");
+        rc.setIndicatorString(String.valueOf(leaderPriority));
 
         this.curLocation = rc.getLocation();
         // Check for new macro instructions, then try to shoot, then try to move
@@ -145,8 +152,8 @@ public class Launcher extends Robot {
             // curTarget (so it's more likely that other launchers are also
             // in range to shoot at our chosen target)
             else if ((enemyRobots[i].health == curTarget.health) &&
-                    (curLocation.distanceSquaredTo(enemyRobots[i].location) < curLocation
-                            .distanceSquaredTo(curTarget.location))) {
+                     (curLocation.distanceSquaredTo(enemyRobots[i].location) <
+                      curLocation.distanceSquaredTo(curTarget.location))) {
                 curTarget = enemyRobots[i];
             }
         }
@@ -168,55 +175,59 @@ public class Launcher extends Robot {
         }
         // Else, the robot can move
 
-        // STOP_MOVING checks
-        // TODO (post-sprint1): add more checks for the launcher to STOP_MOVING
-        // ex. on (enemy/any) island
-        // Can also add checks to rescind STOP_MOVING order
+        // Changing orders
+        // TODO (post-sprint1): add more of these!
 
-        // This check shouldn't overrule direct HQ orders
+        // Rushing enemy headquarters (if spotted)
         if (hqOrder != HQLauncherOrder.MASS_ASSAULT_LOCATION) {
-            for (RobotInfo robot : enemyRobots) {
-                // Sitting right next to enemy headquarters (spawn camping)
+            for (RobotInfo robot : rc.senseNearbyRobots(-1, enemyTeam)) {
+                // Sit next to enemy headquarters (spawn camping)
                 if ((robot.type == RobotType.HEADQUARTERS) &&
-                        (curLocation.isWithinDistanceSquared(robot.location, 20))) {
+                    (curLocation.isWithinDistanceSquared(robot.location, 20))) {
                     hqOrder = HQLauncherOrder.MASS_ASSAULT_LOCATION;
                     hqTargetLocation = robot.location;
                     break;
                 }
-
-                // if (robot.type == RobotType.HEADQUARTERS) &&
-                // (curLocation.isWithinDistanceSquared(robot.location, 20))) {
-                // hqOrder = HQLauncherOrder.STOP_MOVING;
-                // break;
-                // }
             }
         }
 
         relaxedPathfinding = false; // By default
 
         // If not a leader, try to follow a leader
-        if (!this.isLeader && hqOrder != HQLauncherOrder.MASS_ASSAULT_LOCATION) {
+        if ((leaderPriority != 0) && (hqOrder != HQLauncherOrder.MASS_ASSAULT_LOCATION)) {
             MapLocation[] leaderLocations = new MapLocation[friendlyRobots.length];
             int numLeaders = 0;
+            boolean foundOldLauncher = false;
 
-            for (RobotInfo robot : friendlyRobots) {
-                if (isLeader(robot.ID)) {
-                    // This robot is a leader!
-                    leaderLocations[numLeaders] = robot.location;
-                    numLeaders++;
+            for (int curPriority = 0; curPriority < Math.min(leaderPriority, MAX_LEADER_PRIORITY); ++curPriority) {
+                for (RobotInfo robot : friendlyRobots) {
+                    if ((robot.type == RobotType.LAUNCHER) &&
+                        (curPriority == getLeaderPriority(robot.ID))) {
+                        // This robot is a leader (and is a launcher)!
+                        if (robot.ID == followingLauncherID) {
+                            // Old carrier is still in range; follow this one
+                            // over other carriers
+                            foundOldLauncher = true;
+                            break;
+                        }
+                        leaderLocations[numLeaders] = robot.location;
+                        numLeaders++;
+                    }
                 }
-            }
-            if (numLeaders != 0) {
-                // Pick a random leader to follow
-                relaxedPathfinding = true;
-                curMovementTarget = leaderLocations[rng.nextInt(numLeaders)];
+                if (!foundOldLauncher && (numLeaders != 0)) {
+                    // Pick a random new leader to follow
+                    relaxedPathfinding = true;
+                    curMovementTarget = leaderLocations[rng.nextInt(numLeaders)];
+                    // Note: we re-find the ID to make the leaderLocations array smaller
+                    followingLauncherID = rc.senseRobotAtLocation(curMovementTarget).ID;
+                    break;
+                }
             }
         }
 
         // Now, find the correct movementTarget
         if (!relaxedPathfinding) {
-            // Either we are a leader, or we are a follower without a leader
-            // In both cases, we can freely follow HQ orders.
+            // We do not have a leader to follow, so we can freely follow HQ orders.
             if (hqOrder == HQLauncherOrder.ESCORT_CARRIERS) {
                 // Try to pick a random friendly carrier to follow
                 MapLocation[] carrierLocations = new MapLocation[friendlyRobots.length];
@@ -227,7 +238,7 @@ public class Launcher extends Robot {
                     if (robot.type == RobotType.CARRIER) {
                         // This robot is a carrier!
                         if (robot.ID == followingCarrierID) {
-                            // Old carrier is still in range; follow that one
+                            // Old carrier is still in range; follow this one
                             // over other carriers
                             foundOldCarrier = true;
                             break;
@@ -249,11 +260,14 @@ public class Launcher extends Robot {
                     // logic and move randomly
                     curMovementTarget = curLocation;
                 }
-                // Special logic for keeping carriers safe
-                curMovementTarget = new MapLocation((curMovementTarget.x + rc.getMapWidth() / 2) / 2,
-                        (curMovementTarget.y + rc.getMapHeight() / 2) / 2);
+                if (rng.nextInt(2) == 0) {
+                    // Special logic for keeping carriers safe: slowly move toward center
+                    // so that launchers are between enemy and carriers
+                    curMovementTarget = new MapLocation(rc.getMapWidth() / 2,
+                                                        rc.getMapHeight() / 2);
+                }
             } else if ((hqOrder == HQLauncherOrder.HOLD_LOCATION) ||
-                    (hqOrder == HQLauncherOrder.MASS_ASSAULT_LOCATION)) {
+                       (hqOrder == HQLauncherOrder.MASS_ASSAULT_LOCATION)) {
                 // Note that these orders mean the same thing, "go somewhere"
                 curMovementTarget = hqTargetLocation;
             } else if (hqOrder == HQLauncherOrder.PATROL_PATH_TO_LOCATION) {
@@ -269,19 +283,28 @@ public class Launcher extends Robot {
 
         if (hqOrder != HQLauncherOrder.STOP_MOVING) {
             if (relaxedPathfinding && withinRelaxed(curLocation, curMovementTarget)) {
+                // We've (essentially) arrived at our destination
                 // Do random movement (just for this turn) to avoid blockages
-                int numMoveableDirections = 0;
-                Direction[] moveableDirections = new Direction[8];
 
-                for (Direction dir : Constants.ALL_DIRECTIONS) {
-                    if (rc.canMove(dir)) {
-                        moveableDirections[numMoveableDirections] = dir;
-                        numMoveableDirections++;
-                    }
+                if ((randomDirection != Direction.CENTER) &&
+                    rc.canMove(randomDirection) &&
+                    turnsRemaining != 0) {
+                    // Try to move in the same direction
+                    rc.move(randomDirection);
+                    turnsRemaining--;
                 }
-                if (numMoveableDirections != 0) {
-                    // Move in a random valid direction
-                    rc.move(moveableDirections[rng.nextInt(numMoveableDirections)]);
+                else {
+                    randomDirection = Direction.CENTER;
+
+                    Direction[] moveableDirections = getMoveableDirections();
+                    int n = moveableDirections.length;
+                    if (n != 0) {
+                        // Move in a random valid direction
+                        Direction theDirection = moveableDirections[rng.nextInt(n)];
+                        rc.move(theDirection);
+                        randomDirection = theDirection;
+                        turnsRemaining = MAX_TURNS_REMAINING;
+                    }
                 }
             } else {
                 // Pathfind to curMovementTarget
@@ -290,8 +313,8 @@ public class Launcher extends Robot {
         }
     }
 
-    public static boolean isLeader(int robotID) throws GameActionException {
-        return ((robotID ^ (robotID << 4) ^ 232733) % LAUNCHER_LEADER_PROPORTION) == 0;
+    public static int getLeaderPriority(int robotID) throws GameActionException {
+        return (robotID ^ (robotID << 4) ^ 232733) % MAX_LEADER_PRIORITY;
     }
 
     public static boolean withinRelaxed(MapLocation a, MapLocation b) throws GameActionException {

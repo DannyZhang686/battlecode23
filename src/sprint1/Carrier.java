@@ -24,6 +24,14 @@ public class Carrier extends Robot {
     // Note that relaxedPathfinding is only true when gathering at a specific
     // well (i.e. being close enough to collect resources)
     public static final int RELAXED_PATHFINDING_DISTANCE = 2;
+    
+    // Below copied from launcher logic:
+    // For random movement to go in the same direction for multiple turns
+    Direction randomDirection = Direction.CENTER;
+    int turnsRemaining = 0;
+    // Number of turns for which to stick with the same direction
+    public static final int MAX_TURNS_REMAINING = 5;
+
 
     public Carrier(RobotController rc) throws GameActionException {
         super(rc);
@@ -80,14 +88,34 @@ public class Carrier extends Robot {
             // It's time to go home
             while (moveTowardsTarget(hqLocation)) {
             }
-            System.out.println("want to go home but stuck :(");
+            // System.out.println("want to go home but stuck :(");
             return;
         }
 
         WellInfo closest_well = findClosestWell();
 
         if (closest_well == null) {
-            System.out.print("no well, sadge :(");
+            // No well, go explore
+            if ((randomDirection != Direction.CENTER) &&
+                rc.canMove(randomDirection) &&
+                turnsRemaining != 0) {
+                // Try to move in the same direction
+                rc.move(randomDirection);
+                turnsRemaining--;
+            }
+            else {
+                randomDirection = Direction.CENTER;
+
+                Direction[] moveableDirections = getMoveableDirections();
+                int n = moveableDirections.length;
+                if (n != 0) {
+                    // Move in a random valid direction
+                    Direction theDirection = moveableDirections[rng.nextInt(n)];
+                    rc.move(theDirection);
+                    randomDirection = theDirection;
+                    turnsRemaining = MAX_TURNS_REMAINING;
+                }
+            }
             return;
         }
 
@@ -95,16 +123,16 @@ public class Carrier extends Robot {
 
         if (!rc_loc.isAdjacentTo(closest_well_loc)) {
             if (!moveTowardsTarget(closest_well_loc)) {
-                System.out.println("stuck sadge :(");
+                // System.out.println("stuck sadge :(");
                 return;
             } else if (!rc_loc.isAdjacentTo(closest_well_loc) && !moveTowardsTarget(closest_well_loc)) {
-                System.out.println("half stuck sadge :(");
+                // System.out.println("half stuck sadge :(");
                 return;
             }
         }
 
         if (!rc.canCollectResource(closest_well_loc, GameConstants.WELL_STANDARD_RATE)) {
-            System.out.println("cannot collect?");
+            // System.out.println("cannot collect?");
             return;
         }
 
