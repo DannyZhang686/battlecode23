@@ -2,6 +2,7 @@ package sprint1;
 
 import battlecode.common.*;
 import sprint1.data.*;
+import sprint1.utils.RobotMath;
 
 public class Carrier extends Robot {
 
@@ -15,6 +16,24 @@ public class Carrier extends Robot {
 
     HQCarrierOrder hqOrder;
     MapLocation hqTargetLocation; // A location referenced by hqOrder
+
+    // For anchor-carrying carriers, this is the number of consecutive turns
+    // for which no non-friendly islands have been spotted
+    int fruitlessSearchTurns = 0;
+
+    // When fruitlessSearchTurns is above this value, the carrier
+    // will start wandering around the map (covering a larger area to
+    // try and find an empty island)
+    public static final int START_TOURING_MAP = 6;
+    // Destinations to visit (go through randomly)
+    public static final int NUM_TOURIST_DESTINATIONS = 9;
+    MapLocation[] TOURIST_DESTINATIONS;
+    // Destination we are going to right now
+    int curDestination;
+    // Number of turns that a "tourist" carrier has been stuck consecutively
+    // When this exceeds MAX_TOURIST_STUCK_TURNS, a new destination is chosen
+    int touristStuckTurns;
+    public static final int MAX_TOURIST_STUCK_TURNS = 10;
 
     // When carrier health is above this value, the carrier will not shoot
     public static final int SHOOT_THRESHOLD = 6;
@@ -37,36 +56,45 @@ public class Carrier extends Robot {
         super(rc);
 
         hqOrder = HQCarrierOrder.GATHER_ANY_RESOURCE;
+        hqTargetLocation = null;
         friendlyTeam = rc.getTeam();
-        enemyTeam = this.friendlyTeam == Team.A ? Team.B : Team.A;
+        enemyTeam = (friendlyTeam == Team.A) ? Team.B : Team.A;
+        curLocation = rc.getLocation();
+        fruitlessSearchTurns = touristStuckTurns = 0;
+        curDestination = -1;
 
-        RobotInfo[] nearby_robots = this.rc.senseNearbyRobots();
+        // Places to go for anchor-carrying carriers when
+        // fruitlessSearchTurns > START_TOURING_MAP
+        TOURIST_DESTINATIONS = new MapLocation[NUM_TOURIST_DESTINATIONS];
+        TOURIST_DESTINATIONS[0] = new MapLocation(1, 1);
+        TOURIST_DESTINATIONS[1] = new MapLocation(rc.getMapWidth() / 2, 1);
+        TOURIST_DESTINATIONS[2] = new MapLocation(rc.getMapWidth() - 1, 1);
+        TOURIST_DESTINATIONS[3] = new MapLocation(1, rc.getMapHeight() / 2);
+        TOURIST_DESTINATIONS[4] = new MapLocation(rc.getMapWidth() / 2, rc.getMapHeight() / 2);
+        TOURIST_DESTINATIONS[5] = new MapLocation(rc.getMapWidth() - 1, rc.getMapHeight() / 2);
+        TOURIST_DESTINATIONS[6] = new MapLocation(1, rc.getMapHeight() - 1);
+        TOURIST_DESTINATIONS[7] = new MapLocation(rc.getMapWidth() / 2, rc.getMapHeight() - 1);
+        TOURIST_DESTINATIONS[8] = new MapLocation(rc.getMapWidth() - 1, rc.getMapHeight() - 1);
 
-        if (nearby_robots.length == 0) {
-            throw new GameActionException(GameActionExceptionType.INTERNAL_ERROR,
-                    "could not find nearby robots, where is hq?");
-        }
+        MapLocation closestHQLocation = null;
+        int closestHQDistance = 100;
 
-        RobotInfo hq_robot = null;
-
-        for (RobotInfo info : nearby_robots) {
-            // TODO: Find closest, not just one HQ!
-            if (info.type == RobotType.HEADQUARTERS) {
-                hq_robot = info;
-                break;
+        for (RobotInfo info : this.rc.senseNearbyRobots()) {
+            if (info.getType() == RobotType.HEADQUARTERS) {
+                int theDist = RobotMath.getChessboardDistance(info.getLocation(), curLocation);
+                if (theDist < closestHQDistance) {
+                    closestHQDistance = theDist;
+                    closestHQLocation = info.getLocation();
+                }
             }
         }
-
-        if (hq_robot == null) {
-            throw new GameActionException(GameActionExceptionType.INTERNAL_ERROR,
-                    "could not find hq in nearby robots :(");
-        }
-
-        this.hqLocation = hq_robot.location;
+        hqLocation = closestHQLocation;
     }
 
     @Override
     public void run() throws GameActionException {
+        rc.setIndicatorString(String.valueOf(curDestination));
+
         runSetup();
         curLocation = rc.getLocation();
 
@@ -92,8 +120,7 @@ public class Carrier extends Robot {
 
             if (amount_adam > 38 || amount_elix > 38 || amount_mana > 38) {
                 // It's time to go home
-                while (moveTowardsTarget(hqLocation)) {
-                }
+                while (moveTowardsTarget(hqLocation)) {}
                 // System.out.println("want to go home but stuck :(");
                 return;
             }
@@ -103,12 +130,15 @@ public class Carrier extends Robot {
                 // Get the anchor and start looking for an island to place it on
                 rc.takeAnchor(hqLocation, Anchor.STANDARD);
                 hqOrder = HQCarrierOrder.CARRY_ANCHOR;
+                fruitlessSearchTurns = 0;
+                curDestination = -1;
             }
         }
         
         if (hqOrder == HQCarrierOrder.CARRY_ANCHOR) {
+            int curIslandIndex = rc.senseIsland(curLocation);
             if (rc.canPlaceAnchor()) {
-                int curIslandIndex = rc.senseIsland(curLocation); // Should never be -1
+                // curIslandIndex should never be -1
                 if (rc.senseTeamOccupyingIsland(curIslandIndex) != friendlyTeam) {
                     // This island is neutral
                     // Note: apparently placing another anchor on a friendly island
@@ -116,6 +146,16 @@ public class Carrier extends Robot {
                     // no reason to do that
                     rc.placeAnchor();
                     hqOrder = HQCarrierOrder.GATHER_ANY_RESOURCE;
+                    fruitlessSearchTurns = 0;
+                    curDestination = -1;
+                }
+            }
+            else if (curIslandIndex != -1) {
+                if (rc.senseTeamOccupyingIsland(curIslandIndex) == enemyTeam) {
+                    // Sit here until the island becomes neutral (then drop anchor)
+                    fruitlessSearchTurns = 0;
+                    curDestination = -1;
+                    return;
                 }
             }
         }
@@ -136,21 +176,34 @@ public class Carrier extends Robot {
                 if (rc.senseTeamOccupyingIsland(islandIndex) == Team.NEUTRAL) {
                     // Open island!
                     for (MapLocation theLocation : rc.senseNearbyIslandLocations(islandIndex)) {
-                        // This is the correct distance function to use when we can travel
-                        // diagonally just as fast as horizontally or vertically
-                        int lInfinityNorm = Math.max(Math.abs(theLocation.x - curLocation.x),
-                                                     Math.abs(theLocation.y - curLocation.y));
-                        if (lInfinityNorm < curDist) {
-                            curDist = lInfinityNorm;
+                        int theDist = RobotMath.getChessboardDistance(theLocation, curLocation);
+                        if (theDist < curDist) {
+                            curDist = theDist;
                             closestNeutralIslandLoc = theLocation;
                         }
                     }
                 }
             }
+            if (closestNeutralIslandLoc == null) {
+                fruitlessSearchTurns++;
+            }
+            else {
+                fruitlessSearchTurns = 0;
+                curDestination = -1;
+            }
         }
 
-        if (((hqOrder == HQCarrierOrder.GATHER_ANY_RESOURCE) && (closest_well == null)) ||
-            ((hqOrder == HQCarrierOrder.CARRY_ANCHOR) && (closestNeutralIslandLoc == null))) {
+        // If we can't find anything, start visiting spots around the map
+        if ((fruitlessSearchTurns > START_TOURING_MAP) && (curDestination == -1)) {
+            curDestination = rng.nextInt(NUM_TOURIST_DESTINATIONS);
+        }
+
+        if (((hqOrder == HQCarrierOrder.GATHER_ANY_RESOURCE) &&
+             (closest_well == null) &&
+             (hqTargetLocation == null)) ||
+            ((hqOrder == HQCarrierOrder.CARRY_ANCHOR) &&
+             (closestNeutralIslandLoc == null) &&
+             (curDestination == -1))) {
             // No target, go explore
             if ((randomDirection != Direction.CENTER) &&
                 rc.canMove(randomDirection) &&
@@ -177,29 +230,63 @@ public class Carrier extends Robot {
 
         MapLocation targetLocation;
         if (hqOrder == HQCarrierOrder.CARRY_ANCHOR) {
-            targetLocation = closestNeutralIslandLoc;
+            if (curDestination == -1) {
+                targetLocation = closestNeutralIslandLoc;
+            }
+            else {
+                targetLocation = TOURIST_DESTINATIONS[curDestination];
+            }
         }
         else { // hqOrder == HQCarrierOrder.GATHER_ANY_RESOURCE
-            targetLocation = closest_well.getMapLocation();
+            if (hqTargetLocation != null) {
+                targetLocation = hqTargetLocation;
+            }
+            else {
+                targetLocation = closest_well.getMapLocation();
+            }
         }
 
         // Only stop moving if we are adjacent to the target
         // and we are not carrying an anchor (since anchor-carrying
         // carriers need to be right on top of the target)
-        if (!rc_loc.isAdjacentTo(targetLocation) || (hqOrder == HQCarrierOrder.CARRY_ANCHOR)) {
+        // Note: if we're just visiting around the map, it's okay to just be
+        // adjacent to the given destination
+        if ((!rc_loc.isAdjacentTo(targetLocation)) ||
+            ((hqOrder == HQCarrierOrder.CARRY_ANCHOR) && (curDestination == -1))) {
             if (!moveTowardsTarget(targetLocation)) {
+                // Reset curDestination if stuck for too long
+                if (curDestination != -1) {
+                    touristStuckTurns++;
+                    if (touristStuckTurns > MAX_TOURIST_STUCK_TURNS) {
+                        curDestination = rng.nextInt(NUM_TOURIST_DESTINATIONS);
+                        touristStuckTurns = 0;
+                    }
+                }
                 // System.out.println("stuck sadge :(");
                 return;
             } else if (!rc_loc.isAdjacentTo(targetLocation) && !moveTowardsTarget(targetLocation)) {
+                touristStuckTurns = 0;
                 // System.out.println("half stuck sadge :(");
                 return;
+            } else {
+                touristStuckTurns = 0;
             }
         }
 
         // Collect resources if possible
         if (hqOrder == HQCarrierOrder.GATHER_ANY_RESOURCE) {
             if (rc.canCollectResource(targetLocation, GameConstants.WELL_STANDARD_RATE)) {
+                // Set this well as target
+                hqTargetLocation = targetLocation;
                 rc.collectResource(targetLocation, GameConstants.WELL_STANDARD_RATE);
+            }
+        }
+        else if (hqOrder == HQCarrierOrder.CARRY_ANCHOR) {
+            // Reset curDestination if we've arrived
+            if (rc_loc.isAdjacentTo(targetLocation)) {
+                if (curDestination != -1) {
+                    curDestination = rng.nextInt(NUM_TOURIST_DESTINATIONS);
+                }
             }
         }
     }

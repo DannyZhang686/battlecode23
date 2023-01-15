@@ -32,7 +32,12 @@ public class Headquarters extends Robot {
     private int spawnedCarriers = 0;
     private int spawnedLaunchers = 0;
     WellInfo[] nearbyWells;
+    WellInfo[] nearbyAdamantiumWells, nearbyManaWells;
     int allowedCarriersInRange;
+
+    // Favour spawning carriers near adamantium before
+    // this round, and near mana after this round 
+    public static final int MORE_ADAMANTIUM_BEFORE_ROUND = 4;
 
     public Headquarters(RobotController rc) throws GameActionException {
         super(rc);
@@ -64,13 +69,36 @@ public class Headquarters extends Robot {
         enemyTeam = this.friendlyTeam == Team.A ? Team.B : Team.A;
 
         nearbyWells = rc.senseNearbyWells();
+        int numAdamantiumWells = 0, numManaWells = 0;
+
         allowedCarriersInRange = 8;
-        for (WellInfo x : nearbyWells) {
-            int dis = x.getMapLocation().distanceSquaredTo(rc.getLocation());
+        // Compute allowedCarriersInRange as well as the number of
+        // adamantium and mana wells in range
+        for (WellInfo well : nearbyWells) {
+            int dis = well.getMapLocation().distanceSquaredTo(rc.getLocation());
             if (dis >= 16) {
                 allowedCarriersInRange += 4;
             } else if (dis >= 9) {
                 allowedCarriersInRange += 2;
+            }
+            if (well.getResourceType() == ResourceType.ADAMANTIUM) {
+                numAdamantiumWells++;
+            }
+            else if (well.getResourceType() == ResourceType.MANA) {
+                numManaWells++;
+            }
+        }
+        nearbyAdamantiumWells = new WellInfo[numAdamantiumWells];
+        nearbyManaWells = new WellInfo[numManaWells];
+        numAdamantiumWells = numManaWells = 0;
+        for (WellInfo well : nearbyWells) {
+            if (well.getResourceType() == ResourceType.ADAMANTIUM) {
+                nearbyAdamantiumWells[numAdamantiumWells] = well;
+                numAdamantiumWells++;
+            }
+            else if (well.getResourceType() == ResourceType.MANA) {
+                nearbyManaWells[numManaWells] = well;
+                numManaWells++;
             }
         }
     }
@@ -129,13 +157,11 @@ public class Headquarters extends Robot {
             }
             // Harsher restriction because adamantium should never be the
             // limiting factor to anchor spawning
-            if (rc.getResourceAmount(ResourceType.ADAMANTIUM) >= 250
+            if (rc.getResourceAmount(ResourceType.ADAMANTIUM) >= 200
                     && nearbyCarrierCount < allowedCarriersInRange) {
                 tryToSpawnCarrier();
             }
         }
-        // TODO: stop spawning launchers after round X (probably like 1000ish)
-        // to try to win tiebreakers :)
     }
 
     private static final int[][] farPlaces = { { 3, 2 }, { 3, 1 }, { 3, 0 }, { 2, 2 }, { 2, 1 }, { 2, 0 }, { 1, 1 },
@@ -146,20 +172,44 @@ public class Headquarters extends Robot {
             return;
         }
 
-        // Find wells within action radius of headquarters
-        // (only needs to be run the first time) - possible to store all wells in this
-        // HQ, distribute units between them
-        WellInfo[] wells = rc.senseNearbyWells(VISION_RADIUS);
+        // Find wells to spawn carriers near
 
         // TODO: Choose between wells and well resource types
-        if (wells.length > 0) {
-            for (WellInfo well : wells) {
-                MapLocation loc = RobotMath.closestActionablePlacement(rc, HQ_LOC, well.getMapLocation(),
-                        ACTION_RADIUS);
-                if (loc != null && rc.canBuildRobot(RobotType.CARRIER, loc)) {
-                    rc.buildRobot(RobotType.CARRIER, loc);
-                    this.spawnedCarriers++;
-                    return;
+        if (nearbyWells.length > 0) {
+            if (rc.getRoundNum() < MORE_ADAMANTIUM_BEFORE_ROUND) {
+                // Try an adamantium spawn, then a mana spawn
+                int randIndex;
+                if (nearbyAdamantiumWells.length != 0) {
+                    randIndex = rng.nextInt(nearbyAdamantiumWells.length);
+                    if (standardCarrierSpawn(nearbyAdamantiumWells[randIndex].getMapLocation())) {
+                        return;
+                    }
+                }
+                else if (nearbyManaWells.length != 0) {
+                    randIndex = rng.nextInt(nearbyManaWells.length);
+                    if (standardCarrierSpawn(nearbyManaWells[randIndex].getMapLocation())) {
+                        return;
+                    }
+                }
+            }
+            else {
+                // Try two mana spawns, then an adamantium spawn
+                int randIndex;
+                if (nearbyManaWells.length != 0) {
+                    randIndex = rng.nextInt(nearbyManaWells.length);
+                    if (standardCarrierSpawn(nearbyManaWells[randIndex].getMapLocation())) {
+                        return;
+                    }
+                    randIndex = rng.nextInt(nearbyManaWells.length);
+                    if (standardCarrierSpawn(nearbyManaWells[randIndex].getMapLocation())) {
+                        return;
+                    }
+                }
+                else if (nearbyAdamantiumWells.length != 0) {
+                    randIndex = rng.nextInt(nearbyAdamantiumWells.length);
+                    if (standardCarrierSpawn(nearbyAdamantiumWells[randIndex].getMapLocation())) {
+                        return;
+                    }
                 }
             }
         } else {
@@ -211,5 +261,18 @@ public class Headquarters extends Robot {
         if (rc.canBuildAnchor(Anchor.STANDARD)) {
             rc.buildAnchor(Anchor.STANDARD);
         }
+    }
+
+    // Tries to do a carrier spawn near the provided location m,
+    // using the "standard" algorithm
+    // Returns whether the robot was successfully spawned or not
+    private boolean standardCarrierSpawn(MapLocation m) throws GameActionException {
+        MapLocation loc = RobotMath.closestActionablePlacement(rc, HQ_LOC, m, ACTION_RADIUS);
+        if (loc != null && rc.canBuildRobot(RobotType.CARRIER, loc)) {
+            rc.buildRobot(RobotType.CARRIER, loc);
+            spawnedCarriers++;
+            return true;
+        }
+        return false;
     }
 }

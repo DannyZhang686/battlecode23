@@ -30,8 +30,9 @@ public class Launcher extends Robot {
     // For random movement to go in the same direction for multiple turns
     Direction randomDirection = Direction.CENTER;
     int turnsRemaining = 0;
-    // Number of turns for which to stick with the same direction
-    public static final int MAX_TURNS_REMAINING = 5;
+    // Number of turns for which to stick with the same direction.
+    // Launchers should stick pretty tightly together
+    public static final int MAX_TURNS_REMAINING = 2;
 
     // When the number of *offensive* enemies (launchers/destabilizers)
     // in range is not above this value, launchers target other launchers
@@ -50,17 +51,33 @@ public class Launcher extends Robot {
     // (i.e. don't crowd the leader) or patrolling a path
     public static final int RELAXED_PATHFINDING_DISTANCE = 2;
 
+    // Round at which launchers push toward the opposite corner
+    // instead of just the center (for ESCORT_CARRIERS mission)
+    public static final int PUSH_FARTHER_ROUND = 350;
+
     public Launcher(RobotController rc) throws GameActionException {
         super(rc);
         // TODO: Properly initialize hqOrder by reading from shared array
         // Note: need to set curMovementTarget if order is to PATROL_PATH_TO_LOCATION
         hqOrder = HQLauncherOrder.ESCORT_CARRIERS;
         curLocation = rc.getLocation();
-        hqLocation = new MapLocation(0, 0); // TODO: initialize HQ location properly
         followingCarrierID = followingLauncherID = -1;
         friendlyTeam = rc.getTeam();
-        enemyTeam = this.friendlyTeam == Team.A ? Team.B : Team.A;
+        enemyTeam = (friendlyTeam == Team.A) ? Team.B : Team.A;
         leaderPriority = getLeaderPriority(rc.getID());
+        
+        // hqLocation initialization
+        RobotInfo[] nearbyRobots = this.rc.senseNearbyRobots();
+        MapLocation[] possibleHQLocations = new MapLocation[nearbyRobots.length];
+        int nearbyHQs = 0;
+
+        for (RobotInfo info : nearbyRobots) {
+            if (info.getType() == RobotType.HEADQUARTERS) {
+                possibleHQLocations[nearbyHQs] = info.getLocation();
+                nearbyHQs++;
+            }
+        }
+        hqLocation = possibleHQLocations[rng.nextInt(nearbyHQs)];
     }
 
     @Override
@@ -97,7 +114,7 @@ public class Launcher extends Robot {
         int numOffensiveEnemyRobots = 0;
         for (int i = 0; i < enemyRobots.length; i++) {
             if ((enemyRobots[i].type == RobotType.DESTABILIZER) ||
-                    (enemyRobots[i].type == RobotType.LAUNCHER)) {
+                (enemyRobots[i].type == RobotType.LAUNCHER)) {
                 numOffensiveEnemyRobots++;
             }
         }
@@ -260,11 +277,19 @@ public class Launcher extends Robot {
                     // logic and move randomly
                     curMovementTarget = curLocation;
                 }
-                if (rng.nextInt(2) == 0) {
-                    // Special logic for keeping carriers safe: slowly move toward center
-                    // so that launchers are between enemy and carriers
-                    curMovementTarget = new MapLocation(rc.getMapWidth() / 2,
-                                                        rc.getMapHeight() / 2);
+                if (rng.nextInt(3) == 0) {
+                    // Special logic for keeping carriers safe: slowly move toward
+                    // opposite corner of HQ location so that launchers are between
+                    // enemy and carriers
+                    if (rc.getRoundNum() < PUSH_FARTHER_ROUND) {
+                        // Be a bit safer (only go for center)
+                        curMovementTarget = new MapLocation(rc.getMapWidth() / 2,
+                                                            rc.getMapHeight() / 2);
+                    }
+                    else {
+                        curMovementTarget = new MapLocation(rc.getMapWidth() - hqLocation.x,
+                                                            rc.getMapHeight() - hqLocation.y);
+                    }
                 }
             } else if ((hqOrder == HQLauncherOrder.HOLD_LOCATION) ||
                        (hqOrder == HQLauncherOrder.MASS_ASSAULT_LOCATION)) {

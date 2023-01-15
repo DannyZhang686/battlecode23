@@ -93,4 +93,10 @@ public class RobotMath {
         return ORDERED_DIRECTIONS[(dir.getDirectionOrderNum() - 1 + x + ORDERED_DIRECTIONS.length)
                 % ORDERED_DIRECTIONS.length];
     }
+
+    // This is the correct distance function to use when we can travel
+    // diagonally just as fast as horizontally or vertically
+    public static int getChessboardDistance(MapLocation a, MapLocation b) {
+        return Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+    }
 }
