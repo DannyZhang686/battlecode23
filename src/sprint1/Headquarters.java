@@ -90,31 +90,62 @@ public class Headquarters extends Robot {
 
         int nearbyCarrierCount = 0;
         for (RobotInfo x : nearbyRobots) {
-            if (x.type == RobotType.CARRIER)
+            if (x.type == RobotType.CARRIER) {
                 nearbyCarrierCount++;
+            }
         }
 
-        if (rc.getRoundNum() < 9) {
+        int curRound = rc.getRoundNum();
+        int adamantium = rc.getResourceAmount(ResourceType.ADAMANTIUM);
+        int mana = rc.getResourceAmount(ResourceType.MANA);
+        if (curRound < 9) {
             // In the opening, try to spawn carrier first
-            if (rc.getResourceAmount(ResourceType.ADAMANTIUM) >= CARRIER_COST_AD) {
+            if (adamantium >= CARRIER_COST_AD) {
+                tryToSpawnCarrier();
+            }
+            if (mana >= LAUNCHER_COST_MN) {
+                tryToSpawnLauncher();
+            }
+        }
+        else if (curRound < 150) {
+            // Try to spawn launchers, then carriers
+            if (rc.getResourceAmount(ResourceType.MANA) >= LAUNCHER_COST_MN) {
+                tryToSpawnLauncher();
+            }
+            if (rc.getResourceAmount(ResourceType.ADAMANTIUM) >= CARRIER_COST_AD
+                    && nearbyCarrierCount < allowedCarriersInRange) {
                 tryToSpawnCarrier();
             }
         }
-        // try to spawn launcher first
-        if (rc.getResourceAmount(ResourceType.MANA) >= LAUNCHER_COST_MN) {
-            tryToSpawnLauncher();
+        else {
+            // Be more conservative with launcher/carrier spawning, and
+            // try to get anchors out
+            if (rc.getNumAnchors(Anchor.STANDARD) == 0) {
+                tryToSpawnAnchor();
+            }
+            // If you hate magic numbers, now is the time to shield your eyes
+            if (rc.getResourceAmount(ResourceType.MANA) >= 150) {
+                tryToSpawnLauncher();
+            }
+            // Harsher restriction because adamantium should never be the
+            // limiting factor to anchor spawning
+            if (rc.getResourceAmount(ResourceType.ADAMANTIUM) >= 250
+                    && nearbyCarrierCount < allowedCarriersInRange) {
+                tryToSpawnCarrier();
+            }
         }
-        // try to spawn carrier next
-        if (rc.getResourceAmount(ResourceType.ADAMANTIUM) >= CARRIER_COST_AD
-                && nearbyCarrierCount < allowedCarriersInRange) {
-            tryToSpawnCarrier();
-        }
+        // TODO: stop spawning launchers after round X (probably like 1000ish)
+        // to try to win tiebreakers :)
     }
 
     private static final int[][] farPlaces = { { 3, 2 }, { 3, 1 }, { 3, 0 }, { 2, 2 }, { 2, 1 }, { 2, 0 }, { 1, 1 },
             { 1, 0 } };
 
     private void tryToSpawnCarrier() throws GameActionException {
+        if (!rc.isActionReady()) {
+            return;
+        }
+
         // Find wells within action radius of headquarters
         // (only needs to be run the first time) - possible to store all wells in this
         // HQ, distribute units between them
@@ -158,6 +189,9 @@ public class Headquarters extends Robot {
     }
 
     private void tryToSpawnLauncher() throws GameActionException {
+        if (!rc.isActionReady()) {
+            return;
+        }
         // TODO: Incorporate placement logic (i.e. spawn near fights)
 
         MapLocation[] locations = rc.getAllLocationsWithinRadiusSquared(HQ_LOC, VISION_RADIUS);
@@ -172,6 +206,8 @@ public class Headquarters extends Robot {
     }
 
     private void tryToSpawnAnchor() throws GameActionException {
+        // Not sure if anchor spawning requires cooldown, but
+        // canBuildAnchor should check that in any case
         if (rc.canBuildAnchor(Anchor.STANDARD)) {
             rc.buildAnchor(Anchor.STANDARD);
         }

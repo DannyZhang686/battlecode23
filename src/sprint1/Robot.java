@@ -40,7 +40,7 @@ public abstract class Robot {
             setCurrentTarget(targetLocation);
 
             Direction dir = moveTowardsTarget();
-            if (dir == null) {
+            if ((dir == null) || (dir == Direction.CENTER)) {
                 return false;
             }
 
