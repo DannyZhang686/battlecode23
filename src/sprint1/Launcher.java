@@ -67,7 +67,7 @@ public class Launcher extends Robot {
     public void run() throws GameActionException {
         runSetup();
 
-        rc.setIndicatorString(String.valueOf(leaderPriority));
+        // rc.setIndicatorString(String.valueOf(leaderPriority));
 
         this.curLocation = rc.getLocation();
         // Check for new macro instructions, then try to shoot, then try to move
