@@ -109,10 +109,11 @@ public class Carrier extends Robot {
         if (hqOrder == HQCarrierOrder.CARRY_ANCHOR) {
             if (rc.canPlaceAnchor()) {
                 int curIslandIndex = rc.senseIsland(curLocation); // Should never be -1
-                if ((rc.senseTeamOccupyingIsland(curIslandIndex) != friendlyTeam) ||
-                    (rng.nextInt(10) == 0)) {
-                    // Either this island is neutral, or we decided that we should
-                    // re-place an anchor on a friendly island anyway (tiebreaks)
+                if (rc.senseTeamOccupyingIsland(curIslandIndex) != friendlyTeam) {
+                    // This island is neutral
+                    // Note: apparently placing another anchor on a friendly island
+                    // does *not* increase anchors placed for tiebreakers, so there's
+                    // no reason to do that
                     rc.placeAnchor();
                     hqOrder = HQCarrierOrder.GATHER_ANY_RESOURCE;
                 }

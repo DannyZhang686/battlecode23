@@ -288,7 +288,8 @@ public class Launcher extends Robot {
 
                 if ((randomDirection != Direction.CENTER) &&
                     rc.canMove(randomDirection) &&
-                    turnsRemaining != 0) {
+                    (turnsRemaining != 0) &&
+                    (rc.senseMapInfo(curLocation.add(randomDirection)).getCurrentDirection() != Direction.CENTER)) {
                     // Try to move in the same direction
                     rc.move(randomDirection);
                     turnsRemaining--;
@@ -301,6 +302,11 @@ public class Launcher extends Robot {
                     if (n != 0) {
                         // Move in a random valid direction
                         Direction theDirection = moveableDirections[rng.nextInt(n)];
+                        // Avoid currents
+                        while ((rc.senseMapInfo(curLocation.add(randomDirection)).getCurrentDirection() != Direction.CENTER)
+                               && rng.nextInt(5) == 0) {
+                            theDirection = moveableDirections[rng.nextInt(n)];
+                        }
                         rc.move(theDirection);
                         randomDirection = theDirection;
                         turnsRemaining = MAX_TURNS_REMAINING;
