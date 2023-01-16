@@ -367,8 +367,10 @@ public class Launcher extends Robot {
                     launcherCountFactor = Math.min(launcherCountFactor, MAX_LAUNCHER_PROPORTION);
                     launcherCountFactor = (launcherCountFactor - MIN_LAUNCHER_PROPORTION) /
                                           (MAX_LAUNCHER_PROPORTION - MIN_LAUNCHER_PROPORTION);
+                    double healthFactor = rc.getHealth() * 1.0f / 20; // Launcher max health
 
-                    double overallFactor = (roundNumFactor + launcherCountFactor) / 2;
+                    // Between -1 and 1
+                    double overallFactor = (roundNumFactor + launcherCountFactor + 2 * healthFactor) / 2 - 1;
 
                     int targetX = (rc.getMapWidth() / 2) + (int) (overallFactor * (rc.getMapWidth() / 2 - hqLocation.x));
                     int targetY = (rc.getMapHeight() / 2) + (int) (overallFactor * (rc.getMapHeight() / 2 - hqLocation.y));

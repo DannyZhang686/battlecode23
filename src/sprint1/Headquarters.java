@@ -24,6 +24,7 @@ public class Headquarters extends Robot {
     // Favour spawning carriers near adamantium before
     // this round, and near mana after this round
     public static final int MORE_ADAMANTIUM_BEFORE_ROUND = 4;
+    public static final double CURRENT_DISTANCE_PENALTY_FACTOR = 1;
 
     public Headquarters(RobotController rc) throws GameActionException {
         super(rc);
@@ -228,16 +229,20 @@ public class Headquarters extends Robot {
         if (!rc.isActionReady()) {
             return 0;
         }
-        // TODO: Incorporate placement logic (i.e. spawn near fights)
-
         // Spawn as close to center as possible
         MapLocation spawnLocation = null;
         int distanceSquaredFromCenter = 100000;
+        int curRound = rc.getRoundNum();
 
         for (MapLocation location : rc.getAllLocationsWithinRadiusSquared(rc_loc, Constants.HQ_VISION_RADIUS)) {
             if (rc.canBuildRobot(RobotType.LAUNCHER, location)) {
-                if (MAP_CENTER.distanceSquaredTo(location) < distanceSquaredFromCenter) {
-                    distanceSquaredFromCenter = MAP_CENTER.distanceSquaredTo(location);
+                // At the start, avoid spawning launchers on currents because it disperses them
+                int weightedDistanceSquared = MAP_CENTER.distanceSquaredTo(location);
+                if ((curRound < 20) && (rc.senseMapInfo(location).getCurrentDirection() != Direction.CENTER)) {
+                    weightedDistanceSquared += (int) (CURRENT_DISTANCE_PENALTY_FACTOR * Math.sqrt(weightedDistanceSquared));
+                }
+                if (weightedDistanceSquared < distanceSquaredFromCenter) {
+                    distanceSquaredFromCenter = weightedDistanceSquared;
                     spawnLocation = location;
                 }
             }
