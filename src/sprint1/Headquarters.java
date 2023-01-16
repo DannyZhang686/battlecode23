@@ -126,7 +126,7 @@ public class Headquarters extends Robot {
         int curRound = rc.getRoundNum();
         int adamantium = rc.getResourceAmount(ResourceType.ADAMANTIUM);
         int mana = rc.getResourceAmount(ResourceType.MANA);
-        if (curRound < 9) {
+        if (curRound < 6) {
             // In the opening, try to spawn carrier first
             if (adamantium >= CARRIER_COST_AD) {
                 tryToSpawnCarrier();
@@ -193,7 +193,7 @@ public class Headquarters extends Robot {
                 }
             }
             else {
-                // Try two mana spawns, then an adamantium spawn
+                // Try two mana spawns, then spawn randomly (no adamantium spawn!)
                 int randIndex;
                 if (nearbyManaWells.length != 0) {
                     randIndex = rng.nextInt(nearbyManaWells.length);
@@ -205,35 +205,31 @@ public class Headquarters extends Robot {
                         return;
                     }
                 }
-                else if (nearbyAdamantiumWells.length != 0) {
-                    randIndex = rng.nextInt(nearbyAdamantiumWells.length);
-                    if (standardCarrierSpawn(nearbyAdamantiumWells[randIndex].getMapLocation())) {
-                        return;
-                    }
-                }
             }
-        } else {
-            MapLocation[] locations = rc.getAllLocationsWithinRadiusSquared(HQ_LOC, ACTION_RADIUS);
-            // try to spawn in further squares
-            // TODO: try to make it spawn closer to centre of board or wherever it's needed
-            // (whatever locaiton broadcasted to launchers)
-            for (int i = 0; i < farPlaces.length; i++) {
-                int j = rng.nextInt(2); // 0 or 1
-                int dx = farPlaces[i][j] * (rng.nextBoolean() ? 1 : -1);
-                int dy = farPlaces[i][1 - j] * (rng.nextBoolean() ? 1 : -1);
-                MapLocation location = rc.getLocation().translate(dx, dy);
-                if (rc.canBuildRobot(RobotType.CARRIER, location)) {
-                    rc.buildRobot(RobotType.CARRIER, location);
-                    this.spawnedCarriers++;
-                    return;
-                }
+        }
+
+        // If we haven't returned, we haven't spawned
+        // Try spawning randomly
+        MapLocation[] locations = rc.getAllLocationsWithinRadiusSquared(HQ_LOC, ACTION_RADIUS);
+        // try to spawn in further squares
+        // TODO: try to make it spawn closer to centre of board or wherever it's needed
+        // (whatever location broadcasted to launchers)
+        for (int i = 0; i < farPlaces.length; i++) {
+            int j = rng.nextInt(2); // 0 or 1
+            int dx = farPlaces[i][j] * (rng.nextBoolean() ? 1 : -1);
+            int dy = farPlaces[i][1 - j] * (rng.nextBoolean() ? 1 : -1);
+            MapLocation location = rc.getLocation().translate(dx, dy);
+            if (rc.canBuildRobot(RobotType.CARRIER, location)) {
+                rc.buildRobot(RobotType.CARRIER, location);
+                this.spawnedCarriers++;
+                return;
             }
-            for (MapLocation location : locations) {
-                if (rc.canBuildRobot(RobotType.CARRIER, location)) {
-                    rc.buildRobot(RobotType.CARRIER, location);
-                    this.spawnedCarriers++;
-                    return;
-                }
+        }
+        for (MapLocation location : locations) {
+            if (rc.canBuildRobot(RobotType.CARRIER, location)) {
+                rc.buildRobot(RobotType.CARRIER, location);
+                this.spawnedCarriers++;
+                return;
             }
         }
     }

@@ -178,11 +178,9 @@ public class Launcher extends Robot {
         if (rc.canAttack(curTarget.location)) {
             // Attack!
             rc.attack(curTarget.location);
-        } else {
-            // Can't attack; the only enemies in range are headquarters
-            // TODO (post-sprint1): trigger special behaviour? (ex. swarm enemy
-            // headquarters)
         }
+        // Else, the only enemies in range are headquarters
+        // We should then be moving toward the headquarters in tryToMove
     }
 
     private void tryToMove() throws GameActionException {

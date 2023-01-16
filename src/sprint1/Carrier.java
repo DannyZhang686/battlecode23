@@ -17,6 +17,9 @@ public class Carrier extends Robot {
     HQCarrierOrder hqOrder;
     MapLocation hqTargetLocation; // A location referenced by hqOrder
 
+    // A well to refuse to go to
+    MapLocation avoidWellLocation;
+
     // For anchor-carrying carriers, this is the number of consecutive turns
     // for which no non-friendly islands have been spotted
     int fruitlessSearchTurns = 0;
@@ -57,6 +60,7 @@ public class Carrier extends Robot {
 
         hqOrder = HQCarrierOrder.GATHER_ANY_RESOURCE;
         hqTargetLocation = null;
+        avoidWellLocation = null;
         friendlyTeam = rc.getTeam();
         enemyTeam = (friendlyTeam == Team.A) ? Team.B : Team.A;
         curLocation = rc.getLocation();
@@ -93,8 +97,6 @@ public class Carrier extends Robot {
 
     @Override
     public void run() throws GameActionException {
-        rc.setIndicatorString(String.valueOf(curDestination));
-
         runSetup();
         curLocation = rc.getLocation();
 
@@ -105,6 +107,11 @@ public class Carrier extends Robot {
 
             if (amount_adam > 38 && this.rc.canTransferResource(this.hqLocation, ResourceType.ADAMANTIUM, amount_adam)) {
                 this.rc.transferResource(this.hqLocation, ResourceType.ADAMANTIUM, amount_adam);
+                if (rng.nextInt(Math.max((100 - rc.getRoundNum()) / 20, 2)) == 0) {
+                    // Chance of switching away from adamantium
+                    avoidWellLocation = hqTargetLocation;
+                    hqTargetLocation = null;
+                }
                 amount_adam = 0;
             }
 
@@ -161,13 +168,16 @@ public class Carrier extends Robot {
         }
 
         WellInfo closest_well = findClosestWell();
+        // Refuse to go to the avoided well
+        if ((closest_well != null) && (closest_well.getMapLocation() == avoidWellLocation)) {
+            closest_well = null;
+        }
         // Anchor-carrying carriers only actively seek out neutral islands
         // (but as above, will place anchors on friendly islands some of
         //  the time if they stumble across friendly islands
         MapLocation closestNeutralIslandLoc = null;
 
-        // Only initialize closestNeutralIslandLoc if the carrier
-        // order is CARRY_ANCHOR
+        // Only initialize closestNeutralIslandLoc if HQ order is CARRY_ANCHOR
         if (hqOrder == HQCarrierOrder.CARRY_ANCHOR) {
             int[] nearbyIslandIndices = rc.senseNearbyIslands();
             int curDist = 100;
@@ -191,11 +201,10 @@ public class Carrier extends Robot {
                 fruitlessSearchTurns = 0;
                 curDestination = -1;
             }
-        }
-
-        // If we can't find anything, start visiting spots around the map
-        if ((fruitlessSearchTurns > START_TOURING_MAP) && (curDestination == -1)) {
-            curDestination = rng.nextInt(NUM_TOURIST_DESTINATIONS);
+            // If we can't find anything, start visiting spots around the map
+            if ((fruitlessSearchTurns > START_TOURING_MAP) && (curDestination == -1)) {
+                curDestination = rng.nextInt(NUM_TOURIST_DESTINATIONS);
+            }
         }
 
         if (((hqOrder == HQCarrierOrder.GATHER_ANY_RESOURCE) &&
@@ -245,13 +254,15 @@ public class Carrier extends Robot {
                 targetLocation = closest_well.getMapLocation();
             }
         }
+        
+        rc.setIndicatorString(String.valueOf(curDestination) + " " + String.valueOf(targetLocation));
 
         // Only stop moving if we are adjacent to the target
         // and we are not carrying an anchor (since anchor-carrying
         // carriers need to be right on top of the target)
         // Note: if we're just visiting around the map, it's okay to just be
         // adjacent to the given destination
-        if ((!rc_loc.isAdjacentTo(targetLocation)) ||
+        if ((!curLocation.isAdjacentTo(targetLocation)) ||
             ((hqOrder == HQCarrierOrder.CARRY_ANCHOR) && (curDestination == -1))) {
             if (!moveTowardsTarget(targetLocation)) {
                 // Reset curDestination if stuck for too long
@@ -264,12 +275,13 @@ public class Carrier extends Robot {
                 }
                 // System.out.println("stuck sadge :(");
                 return;
-            } else if (!rc_loc.isAdjacentTo(targetLocation) && !moveTowardsTarget(targetLocation)) {
-                touristStuckTurns = 0;
-                // System.out.println("half stuck sadge :(");
-                return;
             } else {
                 touristStuckTurns = 0;
+                curLocation = rc.getLocation();
+                if (!curLocation.isAdjacentTo(targetLocation) && !moveTowardsTarget(targetLocation)) {
+                    // System.out.println("half stuck sadge :(");
+                    return;
+                }
             }
         }
 
@@ -283,7 +295,7 @@ public class Carrier extends Robot {
         }
         else if (hqOrder == HQCarrierOrder.CARRY_ANCHOR) {
             // Reset curDestination if we've arrived
-            if (rc_loc.isAdjacentTo(targetLocation)) {
+            if (curLocation.isAdjacentTo(targetLocation)) {
                 if (curDestination != -1) {
                     curDestination = rng.nextInt(NUM_TOURIST_DESTINATIONS);
                 }

@@ -5,7 +5,6 @@ import battlecode.common.GameActionExceptionType;
 import battlecode.common.GameConstants;
 import battlecode.common.MapLocation;
 import battlecode.common.RobotController;
-import sprint1.Constants;
 import battlecode.common.Direction;
 
 public class RobotMath {
