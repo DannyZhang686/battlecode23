@@ -51,9 +51,29 @@ public class Launcher extends Robot {
     // (i.e. don't crowd the leader) or patrolling a path
     public static final int RELAXED_PATHFINDING_DISTANCE = 2;
 
-    // Round at which launchers push toward the opposite corner
-    // instead of just the center (for ESCORT_CARRIERS mission)
-    public static final int PUSH_FARTHER_ROUND = 350;
+    // Round before which launchers don't move (to defend against early rushes)
+    public static final int NO_MOVEMENT_BEFORE_ROUND = 25;
+    
+    // When the number of nearby friendly launchers is below this
+    // value, there will be no random movement from launchers
+    public static final int NEARBY_LAUNCHER_THRESHOLD = 4;
+
+    // Launchers are more willing to push forward:
+    // - When the round number is large, and
+    // - When there are many nearby launchers.
+    // The following constants regulate this behaviour.
+
+    // First round number at which launchers want to push past the center
+    public static final int MIN_PUSH_ROUND = 250;
+    // Round number at which launchers want to push to the maximum
+    public static final int MAX_PUSH_ROUND = 350;
+
+    // Smallest proportion of nearby launchers at which launchers
+    // want to push past the center
+    public static final double MIN_LAUNCHER_PROPORTION = 0.2;
+    // Proportion of nearby launchers at which launchers want to push
+    // to the maximum
+    public static final double MAX_LAUNCHER_PROPORTION = 0.4;
 
     public Launcher(RobotController rc) throws GameActionException {
         super(rc);
@@ -94,7 +114,9 @@ public class Launcher extends Robot {
         enemyRobots = rc.senseNearbyRobots(16, enemyTeam);
         friendlyRobots = rc.senseNearbyRobots(-1, friendlyTeam);
         tryToShoot();
-        tryToMove();
+        if (rc.getRoundNum() > NO_MOVEMENT_BEFORE_ROUND) {
+            tryToMove();
+        }
     }
 
     private void tryToShoot() throws GameActionException {
@@ -198,6 +220,11 @@ public class Launcher extends Robot {
             for (RobotInfo robot : rc.senseNearbyRobots(-1, enemyTeam)) {
                 // Sit next to enemy headquarters (spawn camping)
                 if ((robot.type == RobotType.HEADQUARTERS) &&
+                    (curLocation.isWithinDistanceSquared(robot.location, 2))) {
+                    hqOrder = HQLauncherOrder.STOP_MOVING;
+                    break;
+                }
+                else if ((robot.type == RobotType.HEADQUARTERS) &&
                     (curLocation.isWithinDistanceSquared(robot.location, 20))) {
                     hqOrder = HQLauncherOrder.MASS_ASSAULT_LOCATION;
                     hqTargetLocation = robot.location;
@@ -219,22 +246,28 @@ public class Launcher extends Robot {
                     if ((robot.type == RobotType.LAUNCHER) &&
                         (curPriority == getLeaderPriority(robot.ID))) {
                         // This robot is a leader (and is a launcher)!
-                        if (robot.ID == followingLauncherID) {
+                        if (robot.getID() == followingLauncherID) {
                             // Old carrier is still in range; follow this one
                             // over other carriers
                             foundOldLauncher = true;
+                            relaxedPathfinding = true;
+                            curMovementTarget = robot.getLocation();
                             break;
                         }
-                        leaderLocations[numLeaders] = robot.location;
+                        leaderLocations[numLeaders] = robot.getLocation();
                         numLeaders++;
                     }
                 }
-                if (!foundOldLauncher && (numLeaders != 0)) {
+                if ((!foundOldLauncher) && (numLeaders != 0)) {
                     // Pick a random new leader to follow
                     relaxedPathfinding = true;
                     curMovementTarget = leaderLocations[rng.nextInt(numLeaders)];
                     // Note: we re-find the ID to make the leaderLocations array smaller
                     followingLauncherID = rc.senseRobotAtLocation(curMovementTarget).ID;
+                    break;
+                }
+                else if (foundOldLauncher) {
+                    // Pretty big bytecode save
                     break;
                 }
             }
@@ -275,19 +308,35 @@ public class Launcher extends Robot {
                     // logic and move randomly
                     curMovementTarget = curLocation;
                 }
-                if (rng.nextInt(3) == 0) {
-                    // Special logic for keeping carriers safe: slowly move toward
-                    // opposite corner of HQ location so that launchers are between
+                if (rng.nextInt(2) == 0) {
+                    // Special logic for attacking: slowly move toward opposite
+                    // corner of HQ location so that launchers are between
                     // enemy and carriers
-                    if (rc.getRoundNum() < PUSH_FARTHER_ROUND) {
-                        // Be a bit safer (only go for center)
-                        curMovementTarget = new MapLocation(rc.getMapWidth() / 2,
-                                                            rc.getMapHeight() / 2);
+                    int effectiveRoundNum = rc.getRoundNum();
+                    int friendlyLauncherCount = 0;
+
+                    effectiveRoundNum = Math.max(effectiveRoundNum, MIN_PUSH_ROUND);
+                    effectiveRoundNum = Math.min(effectiveRoundNum, MAX_PUSH_ROUND);
+                    for (RobotInfo robot : friendlyRobots) {
+                        if (robot.getType() == RobotType.LAUNCHER) {
+                            friendlyLauncherCount++;
+                        }
                     }
-                    else {
-                        curMovementTarget = new MapLocation(rc.getMapWidth() - hqLocation.x,
-                                                            rc.getMapHeight() - hqLocation.y);
-                    }
+
+                    double roundNumFactor = (effectiveRoundNum - MIN_PUSH_ROUND) * 1.0f /
+                                            (MAX_PUSH_ROUND - MIN_PUSH_ROUND);
+                    double launcherCountFactor = friendlyLauncherCount * 1.0f / friendlyRobots.length;
+                    launcherCountFactor = Math.max(launcherCountFactor, MIN_LAUNCHER_PROPORTION);
+                    launcherCountFactor = Math.min(launcherCountFactor, MAX_LAUNCHER_PROPORTION);
+                    launcherCountFactor = (launcherCountFactor - MIN_LAUNCHER_PROPORTION) /
+                                          (MAX_LAUNCHER_PROPORTION - MIN_LAUNCHER_PROPORTION);
+
+                    double overallFactor = (roundNumFactor + launcherCountFactor) / 2;
+
+                    int targetX = (rc.getMapWidth() / 2) + (int) (overallFactor * (rc.getMapWidth() / 2 - hqLocation.x));
+                    int targetY = (rc.getMapHeight() / 2) + (int) (overallFactor * (rc.getMapHeight() / 2 - hqLocation.y));
+
+                    curMovementTarget = new MapLocation(targetX, targetY);
                 }
             } else if ((hqOrder == HQLauncherOrder.HOLD_LOCATION) ||
                        (hqOrder == HQLauncherOrder.MASS_ASSAULT_LOCATION)) {
@@ -308,6 +357,17 @@ public class Launcher extends Robot {
             if (relaxedPathfinding && withinRelaxed(curLocation, curMovementTarget)) {
                 // We've (essentially) arrived at our destination
                 // Do random movement (just for this turn) to avoid blockages
+                int friendlyLauncherCount = 0;
+                for (RobotInfo robot : friendlyRobots) {
+                    if (robot.getType() == RobotType.LAUNCHER) {
+                        friendlyLauncherCount++;
+                    }
+                }
+                if (friendlyLauncherCount < NEARBY_LAUNCHER_THRESHOLD) {
+                    // Not enough support; we shouldn't move randomly to
+                    // ensure we can better defend ourselves
+                    return;
+                }
 
                 if ((randomDirection != Direction.CENTER) &&
                     rc.canMove(randomDirection) &&

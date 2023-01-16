@@ -5,6 +5,15 @@ import battlecode.common.*;
 public class Constants {
         public static final int CLOSEST_DIST = GameConstants.MAP_MAX_HEIGHT * GameConstants.MAP_MAX_WIDTH;
 
+        public static final int HQ_ACTION_RADIUS = 9;
+        public static final int HQ_VISION_RADIUS = 34;
+        public static final int CARRIER_COST_AD = 50; // Adamantium
+        public static final int LAUNCHER_COST_MN = 60; // Mana
+
+        public static final int ANCHOR_COST_AD = 100;
+        public static final int ANCHOR_COST_MN = 100;
+        public static final int ACCEL_ANCHOR_COST_EX = 300;
+
         /** Array containing all the possible movement directions. */
         public static final Direction[] ALL_DIRECTIONS = {
                         Direction.NORTH,

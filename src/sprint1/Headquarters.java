@@ -2,30 +2,16 @@ package sprint1;
 
 import battlecode.common.*;
 import sprint1.data.HQMap;
+import sprint1.irc.IrcEvent;
 import sprint1.irc.IrcWriter;
 import sprint1.utils.RobotMath;
 
 public class Headquarters extends Robot {
-
-    // Specification constants
-    private final int ACTION_RADIUS = 9;
-    private final int VISION_RADIUS = 34;
-    private final int CARRIER_COST_AD = 50; // Adamantium
-    private final int LAUNCHER_COST_MN = 60; // Mana
-
-    private final int ANCHOR_COST_AD = 100;
-    private final int ANCHOR_COST_MN = 100;
-    private final int ACCEL_ANCHOR_COST_EX = 300;
-
-    private final Direction[] directions = { Direction.CENTER, Direction.NORTH, Direction.NORTHEAST, Direction.EAST,
-            Direction.SOUTHEAST, Direction.SOUTH, Direction.SOUTHWEST, Direction.WEST, Direction.NORTHWEST };
-
     private final HQMap map;
     private final IrcWriter irc_writer;
 
     // Final HQ fields
     private final int HQ_ID;
-    private final MapLocation HQ_LOC;
     private final Team friendlyTeam, enemyTeam;
 
     // Initialize constants
@@ -36,34 +22,19 @@ public class Headquarters extends Robot {
     int allowedCarriersInRange;
 
     // Favour spawning carriers near adamantium before
-    // this round, and near mana after this round 
+    // this round, and near mana after this round
     public static final int MORE_ADAMANTIUM_BEFORE_ROUND = 4;
 
     public Headquarters(RobotController rc) throws GameActionException {
         super(rc);
 
-        int hq_id = rc.readSharedArray(0) == 0 ? 0 : 1;
-
-        if (hq_id != 0 && rc.readSharedArray(1) != 0) {
-            hq_id++;
-
-            if (rc.readSharedArray(2) != 0) {
-                hq_id++;
-            }
-        }
-
-        this.HQ_ID = hq_id;
-
-        // Set location
-        this.HQ_LOC = rc.getLocation();
-        // System.out.println("HQ #" + this.HQ_ID + " IS AT " + this.HQ_LOC.x + ", " +
-        // this.HQ_LOC.y); // DEBUG
+        HQ_ID = irc_reader.addAndGetHQID();
 
         // Initialize HQ Channel
-        this.irc_writer = new IrcWriter(this.HQ_LOC, rc, HQ_ID);
+        irc_writer = new IrcWriter(rc_loc, rc, HQ_ID);
 
         // Initialize the map
-        this.map = new HQMap(HQ_LOC, rc);
+        map = new HQMap(rc_loc, rc);
 
         friendlyTeam = rc.getTeam();
         enemyTeam = this.friendlyTeam == Team.A ? Team.B : Team.A;
@@ -83,8 +54,7 @@ public class Headquarters extends Robot {
             }
             if (well.getResourceType() == ResourceType.ADAMANTIUM) {
                 numAdamantiumWells++;
-            }
-            else if (well.getResourceType() == ResourceType.MANA) {
+            } else if (well.getResourceType() == ResourceType.MANA) {
                 numManaWells++;
             }
         }
@@ -95,19 +65,23 @@ public class Headquarters extends Robot {
             if (well.getResourceType() == ResourceType.ADAMANTIUM) {
                 nearbyAdamantiumWells[numAdamantiumWells] = well;
                 numAdamantiumWells++;
-            }
-            else if (well.getResourceType() == ResourceType.MANA) {
+            } else if (well.getResourceType() == ResourceType.MANA) {
                 nearbyManaWells[numManaWells] = well;
                 numManaWells++;
             }
         }
     }
 
+	// TODO: Calculate enemy HQ locations, first with facts and logic, then by sending carrier scouts to determine which orientations are impossible
+    // how to get carrier scouts to report back?
+    boolean[] isPossibleOrientation = {true, true, true};
+    // 0 = hor, 1 = vert, 2 = rot (aka both 0 and 1)
+
     @Override
     public void run() throws GameActionException {
         runSetup();
 
-        this.irc_writer.sync(this.map);
+        // this.irc_writer.sync(this.map);
 
         if (rc.isActionReady())
             tryToSpawn();
@@ -126,26 +100,39 @@ public class Headquarters extends Robot {
         int curRound = rc.getRoundNum();
         int adamantium = rc.getResourceAmount(ResourceType.ADAMANTIUM);
         int mana = rc.getResourceAmount(ResourceType.MANA);
-        if (curRound < 6) {
-            // In the opening, try to spawn carrier first
-            if (adamantium >= CARRIER_COST_AD) {
+        if (curRound < 10) {
+            // In the opening, try to spawn carriers first
+            if (adamantium >= Constants.CARRIER_COST_AD) {
                 tryToSpawnCarrier();
             }
-            if (mana >= LAUNCHER_COST_MN) {
-                tryToSpawnLauncher();
+            if (mana >= Constants.LAUNCHER_COST_MN) {
+                int launcher_id = tryToSpawnLauncher();
+
+                if (launcher_id != 0 && spawnedLaunchers <= 3) {
+                    Direction hq_dir = MAP_CENTER.directionTo(rc_loc);
+                    MapLocation spawn_location = MAP_CENTER.add(hq_dir).add(hq_dir);
+
+                    if (spawnedLaunchers == 2) {
+                        spawn_location = spawn_location.add(hq_dir.rotateLeft());
+                    } else if (spawnedLaunchers == 3) {
+                        spawn_location = spawn_location.add(hq_dir.rotateRight());
+                    }
+
+                    // int data[] = IrcEvent.serializeHoldLocation(spawn_location, launcher_id);
+
+                    // irc_writer.writeBufferEvent(IrcEvent.HOLD_LOCATION, data[0], data[1]);
+                }
             }
-        }
-        else if (curRound < 150) {
+        } else if (curRound < 150) {
             // Try to spawn launchers, then carriers
-            if (rc.getResourceAmount(ResourceType.MANA) >= LAUNCHER_COST_MN) {
+            if (rc.getResourceAmount(ResourceType.MANA) >= Constants.LAUNCHER_COST_MN) {
                 tryToSpawnLauncher();
             }
-            if (rc.getResourceAmount(ResourceType.ADAMANTIUM) >= CARRIER_COST_AD
+            if (rc.getResourceAmount(ResourceType.ADAMANTIUM) >= Constants.CARRIER_COST_AD
                     && nearbyCarrierCount < allowedCarriersInRange) {
                 tryToSpawnCarrier();
             }
-        }
-        else {
+        } else {
             // Be more conservative with launcher/carrier spawning, and
             // try to get anchors out
             if (rc.getNumAnchors(Anchor.STANDARD) == 0) {
@@ -184,15 +171,13 @@ public class Headquarters extends Robot {
                     if (standardCarrierSpawn(nearbyAdamantiumWells[randIndex].getMapLocation())) {
                         return;
                     }
-                }
-                else if (nearbyManaWells.length != 0) {
+                } else if (nearbyManaWells.length != 0) {
                     randIndex = rng.nextInt(nearbyManaWells.length);
                     if (standardCarrierSpawn(nearbyManaWells[randIndex].getMapLocation())) {
                         return;
                     }
                 }
-            }
-            else {
+            } else {
                 // Try two mana spawns, then spawn randomly (no adamantium spawn!)
                 int randIndex;
                 if (nearbyManaWells.length != 0) {
@@ -210,7 +195,7 @@ public class Headquarters extends Robot {
 
         // If we haven't returned, we haven't spawned
         // Try spawning randomly
-        MapLocation[] locations = rc.getAllLocationsWithinRadiusSquared(HQ_LOC, ACTION_RADIUS);
+        MapLocation[] locations = rc.getAllLocationsWithinRadiusSquared(rc_loc, Constants.HQ_ACTION_RADIUS);
         // try to spawn in further squares
         // TODO: try to make it spawn closer to centre of board or wherever it's needed
         // (whatever location broadcasted to launchers)
@@ -234,21 +219,33 @@ public class Headquarters extends Robot {
         }
     }
 
-    private void tryToSpawnLauncher() throws GameActionException {
+    private int tryToSpawnLauncher() throws GameActionException {
         if (!rc.isActionReady()) {
-            return;
+            return 0;
         }
         // TODO: Incorporate placement logic (i.e. spawn near fights)
 
-        MapLocation[] locations = rc.getAllLocationsWithinRadiusSquared(HQ_LOC, VISION_RADIUS);
-        // TODO: change this to prefer spawning further squares?
-        for (MapLocation location : locations) {
+        // Spawn as close to center as possible
+        MapLocation spawnLocation = null;
+        int distanceSquaredFromCenter = 100000;
+
+        for (MapLocation location : rc.getAllLocationsWithinRadiusSquared(rc_loc, Constants.HQ_VISION_RADIUS)) {
             if (rc.canBuildRobot(RobotType.LAUNCHER, location)) {
-                rc.buildRobot(RobotType.LAUNCHER, location);
-                this.spawnedLaunchers++;
-                return;
+                if (MAP_CENTER.distanceSquaredTo(location) < distanceSquaredFromCenter) {
+                    distanceSquaredFromCenter = MAP_CENTER.distanceSquaredTo(location);
+                    spawnLocation = location;
+                }
             }
         }
+        if (spawnLocation == null) {
+            return 0;
+        }
+        if (rc.canBuildRobot(RobotType.LAUNCHER, spawnLocation)) {
+            rc.buildRobot(RobotType.LAUNCHER, spawnLocation);
+            this.spawnedLaunchers++;
+            return rc.senseRobotAtLocation(spawnLocation).getID();
+        }
+        return 0;
     }
 
     private void tryToSpawnAnchor() throws GameActionException {
@@ -263,7 +260,7 @@ public class Headquarters extends Robot {
     // using the "standard" algorithm
     // Returns whether the robot was successfully spawned or not
     private boolean standardCarrierSpawn(MapLocation m) throws GameActionException {
-        MapLocation loc = RobotMath.closestActionablePlacement(rc, HQ_LOC, m, ACTION_RADIUS);
+        MapLocation loc = RobotMath.closestActionablePlacement(rc, rc_loc, m, Constants.HQ_ACTION_RADIUS);
         if (loc != null && rc.canBuildRobot(RobotType.CARRIER, loc)) {
             rc.buildRobot(RobotType.CARRIER, loc);
             spawnedCarriers++;

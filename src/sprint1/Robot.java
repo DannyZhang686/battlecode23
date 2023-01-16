@@ -9,15 +9,32 @@ public abstract class Robot {
 
     protected final RobotController rc;
     protected MapLocation rc_loc;
-    protected final IrcReader IRC_READER;
+    protected final IrcReader irc_reader;
+
+    protected final MapLocation MAP_CENTER;
 
     // Unified random object for robot usage
-    static final Random rng = new Random(62951413);
+    protected final Random rng;
 
     public Robot(RobotController rc) throws GameActionException {
         this.rc = rc;
+        rng = new Random(31415926 ^ 271828 ^ rc.getID());
         rc_loc = rc.getLocation();
-        IRC_READER = new IrcReader(rc);
+        irc_reader = new IrcReader(rc);
+
+        // MAP_CENTER initialization
+        int center_x = rc.getMapWidth() / 2;
+        int center_y = rc.getMapHeight() / 2;
+
+        if (rc_loc.x > center_x) {
+            center_x++;
+        }
+
+        if (rc_loc.y > center_y) {
+            center_y++;
+        }
+
+        MAP_CENTER = new MapLocation(center_x, center_y);
     }
 
     public abstract void run() throws GameActionException;
@@ -44,14 +61,7 @@ public abstract class Robot {
                 return false;
             }
 
-            assert rc.canMove(dir);
-
-            if (!rc.canMove(dir)) {
-                System.out.println("attempting to move to " + dir.toString() + " but can't");
-                return false;
-            }
-
-            rc.move(dir);
+            tryToMoveInDirection(dir);
             return true;
         }
 
@@ -64,7 +74,9 @@ public abstract class Robot {
         assert rc_loc != null;
 
         Direction dir = rc_loc.directionTo(current_target);
-        if (dir == Direction.CENTER) return null;
+        if (dir == Direction.CENTER) {
+            return null;
+        }
 
         int dir_raylen = 0;
         MapLocation curloc = rc_loc.add(dir);
@@ -120,62 +132,56 @@ public abstract class Robot {
         }
 
         if (dirn_raylen < dirp_raylen) {
-            bug_wall_state = dirn.rotateLeft();
-            Direction perp = bug_wall_state.opposite();
-
-            if (rc.canMove(perp)) {
-                return perp;
-            }
-
-            Direction perpalt = RobotMath.getNextDirection(perp);
-            if (rc.canMove(perpalt)) {
-                return perpalt;
-            }
-
-            return null;
+            // bug_wall_state = dirn.rotateLeft();
+            // Direction perp = bug_wall_state.opposite();
+            bug_wall_state = dirn;
+            
+            return dirp;
         }
 
-        bug_wall_state = dirp.rotateRight();
-        Direction perp = bug_wall_state.opposite();
-
-        if (rc.canMove(perp)) {
-            return perp;
-        }
-
-        Direction perpalt = RobotMath.getPreviousDirection(perp);
-        if (rc.canMove(perpalt)) {
-            return perpalt;
-        }
-
-        return null;
+        // bug_wall_state = dirp.rotateRight();
+        // Direction perp = bug_wall_state.opposite();
+        bug_wall_state = dirp;
+        return dirn;
     }
 
     protected WellInfo findClosestWell() {
         WellInfo[] wells = rc.senseNearbyWells();
+        WellInfo closestWell = null;
+        int closestWellDistance = 100000;
 
-        if (wells.length == 0) {
-            return null;
-        } else if (wells.length == 1) {
-            return wells[0];
-        }
-
-        WellInfo closest_well = wells[0];
-        int closest_well_dist = rc_loc.distanceSquaredTo(closest_well.getMapLocation());
-
-        for (int i = 1; i < wells.length; i++) {
-            int dist = rc_loc.distanceSquaredTo(wells[i].getMapLocation());
-
-            if (dist < closest_well_dist) {
-                closest_well = wells[i];
-                closest_well_dist = dist;
+        for (WellInfo well : wells) {
+            int wellDistance = rc_loc.distanceSquaredTo(well.getMapLocation());
+            if (wellDistance < closestWellDistance) {
+                closestWellDistance = wellDistance;
+                closestWell = well;
             }
         }
 
-        return closest_well;
+        return closestWell;
+    }
+
+    protected WellInfo findClosestResourceWell(ResourceType rType) {
+        WellInfo[] wells = rc.senseNearbyWells();
+        WellInfo closestWell = null;
+        int closestWellDistance = 100000;
+
+        for (WellInfo well : wells) {
+            // Only consider wells with that resource
+            if (well.getResourceType() == rType) {
+                int wellDistance = rc_loc.distanceSquaredTo(well.getMapLocation());
+                if (wellDistance < closestWellDistance) {
+                    closestWellDistance = wellDistance;
+                    closestWell = well;
+                }
+            }
+        }
+
+        return closestWell;
     }
 
     // Returns the optimal direction to move in; does *not* do any actual moving and
-    // does *not* check that the optimal direction to move in is valid 
+    // does *not* check that the optimal direction to move in is valid
     // Assumption: vision range is either 4, 20, or 34
     protected Direction optimalDirection(MapLocation targetLocation) throws GameActionException {
         boolean[] isRayPassable = new boolean[Constants.rays.length];
@@ -185,8 +191,7 @@ public abstract class Robot {
                 MapLocation curTile = rc.getLocation().translate(tile[0], tile[1]);
                 if (!rc.canSenseLocation(curTile)) {
                     break;
-                }
-                else if (!rc.sensePassability(curTile)) {
+                } else if (!rc.sensePassability(curTile)) {
                     isRayPassable[i] = false;
                     break;
                 }
@@ -197,16 +202,19 @@ public abstract class Robot {
         // If so, return that direction
         // If not, do the oPoint logic below, and take the oPoint minimizing
         // distance (with distance given by max(dx, dy), *not* distanceSquared!)
+        int bestOPointIndex = -1;
+        int oPointDistance = 10000;
 
-        boolean[] isOPoint = new boolean[Constants.rays.length];
         for (int i = 0; i < Constants.rays.length; i++) {
-            isOPoint[i] = isRayPassable[i] &&
-                          ((isRayPassable[i] != isRayPassable[(i+1) % Constants.rays.length]) ||
-                           (isRayPassable[(i+Constants.rays.length-1) % Constants.rays.length]
-                            != isRayPassable[i]));
+            boolean isOPoint = isRayPassable[i] &&
+                    ((isRayPassable[i] != isRayPassable[(i + 1) % Constants.rays.length]) ||
+                            (isRayPassable[(i + Constants.rays.length - 1)
+                                    % Constants.rays.length] != isRayPassable[i]));
         }
-        
-        for (int i = 0; i < Constants.rays.length; i++) {
+
+        if (bestOPointIndex == -1) {
+            // Uhhhh (:
+            return null;
         }
         return null;
     }
@@ -274,7 +282,7 @@ public abstract class Robot {
         // resize it
         Direction[] ret = new Direction[n];
         while (n-- > 0)
-            ret[n] = moveableDirections[n]; 
+            ret[n] = moveableDirections[n];
 
         return ret;
     }

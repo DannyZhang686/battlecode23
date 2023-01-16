@@ -24,4 +24,10 @@ public class IrcReader {
 
         return new MapLocation(data % 64, data / 64);
     }
+
+    public int addAndGetHQID() throws GameActionException {
+        int hq_id = rc.readSharedArray(IrcConstants.IRC_HQ_ID_INT);
+        rc.writeSharedArray(IrcConstants.IRC_HQ_ID_INT, hq_id + 1);
+        return hq_id;
+    }
 }

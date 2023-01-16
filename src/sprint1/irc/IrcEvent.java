@@ -8,9 +8,13 @@ import sprint1.utils.Tuple;
 
 public enum IrcEvent {
     // Skip 0 since 0 indicates no data :)
-    BROADCAST_LOCATION_TYPE(1);
+    INIT_HQ_SYNC(1),
+    BROADCAST_LOCATION_TYPE(2),
+    HOLD_LOCATION(3);
 
     public static final int IRC_EVENT_BITS = 2;
+    public static final int IRC_MAX_EVENTS_BITS = 14; // 16 - 2 for HQ in IrcWriter
+    public static final int IRC_MAX_EVENTS_BITS_ASSERTER = 0b11111111111111;
 
     private final int value;
 
@@ -22,11 +26,29 @@ public enum IrcEvent {
         return value;
     }
 
+    public int getFragLength() throws GameActionException {
+        switch (value) {
+            case 1:
+                return 27;
+            case 2:
+                return 0;
+            case 3:
+                return 1;
+            default:
+                throw new GameActionException(GameActionExceptionType.INTERNAL_ERROR,
+                        "IrcEvent.getFraglength failed for value " + value);
+        }
+    }
+
     // Mapping from an int to the corresponding IrcEvent
     public static IrcEvent fromValue(int value) throws GameActionException {
         switch (value) {
             case 1:
+                return IrcEvent.INIT_HQ_SYNC;
+            case 2:
                 return IrcEvent.BROADCAST_LOCATION_TYPE;
+            case 3:
+                return IrcEvent.HOLD_LOCATION;
             default:
                 throw new GameActionException(GameActionExceptionType.INTERNAL_ERROR,
                         "IrcEvent.fromValue failed for value " + value);
@@ -54,6 +76,17 @@ public enum IrcEvent {
         data *= 16;
         data += type.getValue();
 
+        assert data <= IRC_MAX_EVENTS_BITS_ASSERTER;
+
         return data;
+    }
+
+    public static int[] serializeHoldLocation(MapLocation loc, int robot_id) {
+        int data = loc.y * 64 + loc.x;
+
+        assert data <= IRC_MAX_EVENTS_BITS_ASSERTER;
+        assert robot_id <= IRC_MAX_EVENTS_BITS_ASSERTER;
+
+        return new int[] { data, robot_id };
     }
 };
