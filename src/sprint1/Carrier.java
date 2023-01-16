@@ -40,6 +40,9 @@ public class Carrier extends Robot {
     // When carrier health is above this value, the carrier will not shoot
     public static final int SHOOT_THRESHOLD = 6;
 
+    // When carrier health is below this value, the carrier will run from enemies
+    public static final int SCARED_THRESHOLD = 10;
+
     // If relaxedPathfinding is true, being <= RELAXED_PATHFINDING_DISTANCE
     // units from the target is considered equivalent to being at the target
     // Note that relaxedPathfinding is only true when gathering at a specific
@@ -49,9 +52,13 @@ public class Carrier extends Robot {
     // Below copied from launcher logic:
     // For random movement to go in the same direction for multiple turns
     Direction randomDirection = Direction.CENTER;
-    int turnsRemaining = 0;
+    int exploreTurnsRemaining = 0;
     // Number of turns for which to stick with the same direction
-    public static final int MAX_TURNS_REMAINING = 5;
+    public static final int MAX_EXPLORE_TURNS_REMAINING = 5;
+
+    Direction fleeDirection = Direction.CENTER;
+    int fleeTurnsRemaining = 0;
+    public static final int MAX_FLEE_REMAINING = 4;
 
     public Carrier(RobotController rc) throws GameActionException {
         super(rc);
@@ -100,6 +107,8 @@ public class Carrier extends Robot {
 
         runSetup();
         curLocation = rc.getLocation();
+
+        avoidThreats();
 
         if (hqOrder != HQCarrierOrder.CARRY_ANCHOR) {
             int amount_adam = this.rc.getResourceAmount(ResourceType.ADAMANTIUM);
@@ -221,10 +230,10 @@ public class Carrier extends Robot {
             // No target, go explore
             if ((randomDirection != Direction.CENTER) &&
                     rc.canMove(randomDirection) &&
-                    turnsRemaining != 0) {
+                    exploreTurnsRemaining != 0) {
                 // Try to move in the same direction
                 rc.move(randomDirection);
-                turnsRemaining--;
+                exploreTurnsRemaining--;
             } else {
                 randomDirection = Direction.CENTER;
 
@@ -235,7 +244,7 @@ public class Carrier extends Robot {
                     Direction theDirection = moveableDirections[rng.nextInt(n)];
                     rc.move(theDirection);
                     randomDirection = theDirection;
-                    turnsRemaining = MAX_TURNS_REMAINING;
+                    exploreTurnsRemaining = MAX_EXPLORE_TURNS_REMAINING;
                 }
             }
             return;
@@ -300,4 +309,55 @@ public class Carrier extends Robot {
             }
         }
     }
+
+    private void avoidThreats() throws GameActionException{
+        // identify threats
+        RobotInfo closestThreat = closestThreat();
+
+        if(closestThreat != null){
+            rc.setIndicatorString("Flee! Closest threat location:" + String.valueOf(closestThreat.getLocation()));
+            Direction dir = rc_loc.directionTo(closestThreat.getLocation());
+            fleeDirection = dir.opposite();
+            fleeTurnsRemaining = MAX_FLEE_REMAINING;
+        }
+
+        if(fleeTurnsRemaining > 0){
+            while(fleeTurnsRemaining > 0 && moveTowardsDirection(fleeDirection)){
+                fleeTurnsRemaining--;
+            }
+        }
+    }
+
+    // return the closest enemy robot that is a threat
+    private RobotInfo closestThreat() throws GameActionException{
+        int health = rc.getHealth();
+        int enemyLaunchers = 0;
+
+        RobotInfo[] nearbyRobots  = this.rc.senseNearbyRobots();
+        RobotInfo closestThreat = null;
+        int closestThreatDist = 100000;
+        for(RobotInfo robot: nearbyRobots){
+            if(robot.getTeam() == enemyTeam){
+                RobotType robotType = robot.getType();
+                if(robotType == RobotType.LAUNCHER){
+                    int threatDistance = rc_loc.distanceSquaredTo(robot.getLocation());
+                    if(threatDistance < closestThreatDist){
+                        closestThreatDist = threatDistance;
+                        closestThreat = robot;
+                    }
+                    enemyLaunchers++;
+                }
+            }
+        }
+
+        // Determine if robot is under threat
+        // TODO: tuning
+        if( (enemyLaunchers >= 1 && health < SCARED_THRESHOLD) 
+            || (enemyLaunchers >= 2) ){
+            return closestThreat;
+        }
+
+        return null;
+    }
+    
 }

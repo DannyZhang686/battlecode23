@@ -68,19 +68,33 @@ public abstract class Robot {
             }
             setCurrentTarget(targetLocation);
 
-            Direction dir = moveTowardsTarget();
+            Direction dir = pathTowardsTarget();
             if ((dir == null) || (dir == Direction.CENTER)) {
                 return false;
             }
 
-            tryToMoveInDirection(dir);
-            return true;
+            return tryToMoveInDirection(dir);
         }
 
         return false;
     }
 
-    private Direction moveTowardsTarget() throws GameActionException {
+
+    // move towards a direction without a destination
+    protected boolean moveTowardsDirection(Direction target_dir) throws GameActionException {
+        if (rc.isMovementReady()) {
+            Direction dir = pathTowardsDirection(target_dir);
+            if ((dir == null) || (dir == Direction.CENTER)) {
+                return false;
+            }
+
+            return tryToMoveInDirection(dir);
+        }
+
+        return false;
+    }
+
+    private Direction pathTowardsTarget() throws GameActionException {
         assert rc.getType() != RobotType.HEADQUARTERS;
         assert current_target != null;
         assert rc_loc != null;
@@ -101,11 +115,26 @@ public abstract class Robot {
             lockedDirection = Direction.CENTER;
         }
 
+        if ((turnCount >= MAX_FRUSTRATED_TURNS) && (lockedDirection == Direction.CENTER)) {
+            turnCount = MAX_FRUSTRATED_TURNS;
+            lockedDirection = rc.getID() % 2 == 0 ? dir.rotateLeft().rotateLeft() : dir.rotateRight().rotateRight();
+        } else if ((turnCount > 0) && (lockedDirection != Direction.CENTER)) {
+            turnCount--;
+            return lockedDirection;
+        } else if ((turnCount <= 0) && (lockedDirection != Direction.CENTER)) {
+            turnCount = 0;
+            lockedDirection = Direction.CENTER;
+        }
+
+        return pathTowardsDirection(dir);
+    }
+
+    private Direction pathTowardsDirection(Direction dir) throws GameActionException {
         int dir_raylen = 0;
         MapLocation curloc = rc_loc.add(dir);
         boolean dir_valid = true;
 
-        assert rc.canSenseLocation(curloc);
+        if(!rc.canSenseLocation(curloc)) return null;
 
         while (rc.canSenseLocation(curloc)) {
             if (rc.sensePassability(curloc) && (dir_raylen != 0 || !rc.canSenseRobotAtLocation(curloc))) {
@@ -171,6 +200,7 @@ public abstract class Robot {
         bug_wall_state = dirp;
         return dirn;
     }
+
 
     protected WellInfo findClosestWell() {
         WellInfo[] wells = rc.senseNearbyWells();
