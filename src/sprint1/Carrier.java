@@ -6,7 +6,6 @@ import sprint1.utils.RobotMath;
 
 public class Carrier extends Robot {
 
-    Team friendlyTeam, enemyTeam;
     MapLocation curLocation;
     MapLocation curMovementTarget;
     boolean relaxedPathfinding;
@@ -63,8 +62,6 @@ public class Carrier extends Robot {
         }
         hqTargetLocation = null;
         avoidWellLocation = null;
-        friendlyTeam = rc.getTeam();
-        enemyTeam = (friendlyTeam == Team.A) ? Team.B : Team.A;
         curLocation = rc.getLocation();
         fruitlessSearchTurns = touristStuckTurns = 0;
         curDestination = -1;
