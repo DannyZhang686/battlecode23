@@ -347,7 +347,7 @@ public class Launcher extends Robot {
                     // logic and move randomly
                     curMovementTarget = curLocation;
                 }
-                if ((rng.nextInt(2) == 0) && (leaderPriority != MAX_LEADER_PRIORITY-1)) {
+                if ((rng.nextInt(3) != 0) && (leaderPriority != MAX_LEADER_PRIORITY-1)) {
                     // Special logic for attacking: slowly move toward opposite
                     // corner of HQ location so that launchers are between
                     // enemy and carriers

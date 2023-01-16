@@ -45,6 +45,9 @@ public abstract class Robot {
 
     protected MapLocation current_target = null;
     protected Direction bug_wall_state = null;
+    int turnCount;
+    int MAX_FRUSTRATED_TURNS = 10;
+    Direction lockedDirection;
 
     protected void setCurrentTarget(MapLocation ct) {
         current_target = ct;
@@ -54,6 +57,10 @@ public abstract class Robot {
     protected boolean moveTowardsTarget(MapLocation targetLocation) throws GameActionException {
         if (rc.isMovementReady()) {
             rc_loc = rc.getLocation();
+            if (targetLocation != current_target) {
+                turnCount = 0;
+                lockedDirection = Direction.CENTER;
+            }
             setCurrentTarget(targetLocation);
 
             Direction dir = moveTowardsTarget();
@@ -78,6 +85,17 @@ public abstract class Robot {
             return null;
         }
 
+        if ((turnCount >= MAX_FRUSTRATED_TURNS) && (lockedDirection == Direction.CENTER)) {
+            turnCount = MAX_FRUSTRATED_TURNS;
+            lockedDirection = rc.getID() % 2 == 0 ? dir.rotateLeft().rotateLeft() : dir.rotateRight().rotateRight();
+        } else if ((turnCount > 0) && (lockedDirection != Direction.CENTER)) {
+            turnCount--;
+            return lockedDirection;
+        } else if ((turnCount <= 0) && (lockedDirection != Direction.CENTER)) {
+            turnCount = 0;
+            lockedDirection = Direction.CENTER;
+        }
+
         int dir_raylen = 0;
         MapLocation curloc = rc_loc.add(dir);
         boolean dir_valid = true;
@@ -95,6 +113,7 @@ public abstract class Robot {
         }
 
         if (dir_valid) {
+            turnCount = 0;
             return dir;
         }
 
@@ -116,21 +135,24 @@ public abstract class Robot {
         }
 
         if (dir_raylen == 0 && dirn_raylen == 0 && dirp_raylen == 0) {
-            return null;
+            turnCount++;
+            return rc.getID() % 2 == 0 ? dirp.rotateLeft() : dirn.rotateRight();
         }
 
         if (dir_raylen > Math.min(dirn_raylen, dirp_raylen)) {
+            turnCount = 0;
             return dir;
         }
 
         if (dir_raylen == Math.min(dirn_raylen, dirp_raylen)) {
-            if (rng.nextInt(2) == 0) {
-                int temp = dirn_raylen;
-                dirn_raylen = dirp_raylen;
-                dirp_raylen = temp;
+            if (dirn_raylen == dirp_raylen) {
+                turnCount = 0;
+                return dir;
             }
         }
 
+        // Guaranteed to return a suboptimal direction
+        turnCount++;
         if (dirn_raylen < dirp_raylen) {
             // bug_wall_state = dirn.rotateLeft();
             // Direction perp = bug_wall_state.opposite();
