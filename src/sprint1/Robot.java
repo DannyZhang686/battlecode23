@@ -16,6 +16,8 @@ public abstract class Robot {
     // Unified random object for robot usage
     protected final Random rng;
 
+    Team friendlyTeam, enemyTeam;
+
     public Robot(RobotController rc) throws GameActionException {
         this.rc = rc;
         rng = new Random(31415926 ^ 271828 ^ rc.getID());
@@ -35,6 +37,9 @@ public abstract class Robot {
         }
 
         MAP_CENTER = new MapLocation(center_x, center_y);
+
+        friendlyTeam = rc.getTeam();
+        enemyTeam = (friendlyTeam == Team.A) ? Team.B : Team.A;
     }
 
     public abstract void run() throws GameActionException;

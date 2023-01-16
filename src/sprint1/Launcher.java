@@ -5,7 +5,6 @@ import sprint1.data.*;
 
 public class Launcher extends Robot {
 
-    Team friendlyTeam, enemyTeam;
     MapLocation curLocation;
     MapLocation curMovementTarget;
     boolean relaxedPathfinding;
@@ -84,8 +83,6 @@ public class Launcher extends Robot {
         hqOrder = HQLauncherOrder.ESCORT_CARRIERS;
         curLocation = rc.getLocation();
         followingCarrierID = followingLauncherID = -1;
-        friendlyTeam = rc.getTeam();
-        enemyTeam = (friendlyTeam == Team.A) ? Team.B : Team.A;
         leaderPriority = getLeaderPriority(rc.getID());
         
         // hqLocation initialization
