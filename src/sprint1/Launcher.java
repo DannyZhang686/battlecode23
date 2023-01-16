@@ -10,8 +10,10 @@ public class Launcher extends Robot {
     MapLocation curMovementTarget;
     boolean relaxedPathfinding;
 
-    RobotInfo[] enemyRobots; // Within shooting radius
-    RobotInfo[] friendlyRobots; // Within vision radius
+    // Within shooting radius
+    RobotInfo[] shootableEnemyRobots;
+    // Within vision radius
+    RobotInfo[] friendlyRobots, enemyRobots;
 
     // Location of HQ closest to the spawn of this launcher
     final MapLocation hqLocation;
@@ -51,8 +53,8 @@ public class Launcher extends Robot {
     // (i.e. don't crowd the leader) or patrolling a path
     public static final int RELAXED_PATHFINDING_DISTANCE = 2;
 
-    // Round before which launchers don't move (to defend against early rushes)
-    public static final int NO_MOVEMENT_BEFORE_ROUND = 25;
+    // Round before which launchers don't move offensively (to defend against early rushes)
+    public static final int DEFEND_BEFORE_ROUND = 20;
     
     // When the number of nearby friendly launchers is below this
     // value, there will be no random movement from launchers
@@ -104,52 +106,56 @@ public class Launcher extends Robot {
     public void run() throws GameActionException {
         runSetup();
 
-        // rc.setIndicatorString(String.valueOf(leaderPriority));
-
-        this.curLocation = rc.getLocation();
+        curLocation = rc.getLocation();
         // Check for new macro instructions, then try to shoot, then try to move
         // TODO: Integer macro_instruction = HQ_CONSUMER.getUnitCommand(rc.getID());
 
-        // enemyRobots is used by both tryToShoot and tryToMove
-        enemyRobots = rc.senseNearbyRobots(16, enemyTeam);
+        shootableEnemyRobots = rc.senseNearbyRobots(16, enemyTeam);
         friendlyRobots = rc.senseNearbyRobots(-1, friendlyTeam);
-        tryToShoot();
-        if (rc.getRoundNum() > NO_MOVEMENT_BEFORE_ROUND) {
+        enemyRobots = rc.senseNearbyRobots(-1, enemyTeam);
+        if (!tryToShoot()) {
             tryToMove();
+            // Positioning has possibly changed
+            curLocation = rc.getLocation();
+            shootableEnemyRobots = rc.senseNearbyRobots(16, enemyTeam);
+            friendlyRobots = rc.senseNearbyRobots(-1, friendlyTeam);
+            enemyRobots = rc.senseNearbyRobots(-1, enemyTeam);
+            tryToShoot();
         }
     }
 
-    private void tryToShoot() throws GameActionException {
+    // Return value: whether or not the shot was successful
+    private boolean tryToShoot() throws GameActionException {
         if (!rc.isActionReady()) {
             // On cooldown
-            return;
+            return false;
         }
         // Else, the robot can shoot
 
-        if (enemyRobots.length == 0) {
+        if (shootableEnemyRobots.length == 0) {
             // Nothing to shoot at
-            return;
+            return false;
         }
         // Else, the robot has a location to shoot at
 
         // Should we hit launchers or boosters first (after destabilizers)?
         int numOffensiveEnemyRobots = 0;
-        for (int i = 0; i < enemyRobots.length; i++) {
-            if ((enemyRobots[i].type == RobotType.DESTABILIZER) ||
-                (enemyRobots[i].type == RobotType.LAUNCHER)) {
+        for (int i = 0; i < shootableEnemyRobots.length; i++) {
+            if ((shootableEnemyRobots[i].type == RobotType.DESTABILIZER) ||
+                (shootableEnemyRobots[i].type == RobotType.LAUNCHER)) {
                 numOffensiveEnemyRobots++;
             }
         }
         // If numOffensiveEnemyRobots <= TARGET_LAUNCHERS_FIRST_ENEMY_THRESHOLD,
         // then we hit launchers first. Otherwise, we hit boosters first.
 
-        RobotInfo curTarget = enemyRobots[0];
-        for (int i = 1; i < enemyRobots.length; i++) {
-            // Is enemyRobots[i] a better target than curTarget?
+        RobotInfo curTarget = shootableEnemyRobots[0];
+        for (int i = 1; i < shootableEnemyRobots.length; i++) {
+            // Is shootableEnemyRobots[i] a better target than curTarget?
             // If so, replace curTarget with that target
 
             // First, check unit types
-            if (curTarget.type != enemyRobots[i].type) {
+            if (curTarget.type != shootableEnemyRobots[i].type) {
                 RobotType[] attackPriority = new RobotType[6];
 
                 // Destabilizers are the scariest enemies
@@ -172,9 +178,9 @@ public class Launcher extends Robot {
                     if (curTarget.type == attackPriority[j]) {
                         // The current target is higher priority
                         break;
-                    } else if (enemyRobots[i].type == attackPriority[j]) {
+                    } else if (shootableEnemyRobots[i].type == attackPriority[j]) {
                         // The new target is higher priority
-                        curTarget = enemyRobots[i];
+                        curTarget = shootableEnemyRobots[i];
                         break;
                     }
                 }
@@ -183,53 +189,73 @@ public class Launcher extends Robot {
             // the target if and only if enemyRobot[i] has lower health
             // This is technically a bit inefficient, but we want to kill
             // off units as much as possible to minimize counterattacks
-            else if (enemyRobots[i].health < curTarget.health) {
-                curTarget = enemyRobots[i];
+            else if (shootableEnemyRobots[i].health < curTarget.health) {
+                curTarget = shootableEnemyRobots[i];
             }
             // If the health of the robots is the same, we change the target
             // if and only of enemyRobot[i] is strictly closer to us than
             // curTarget (so it's more likely that other launchers are also
             // in range to shoot at our chosen target)
-            else if ((enemyRobots[i].health == curTarget.health) &&
-                     (curLocation.distanceSquaredTo(enemyRobots[i].location) <
+            else if ((shootableEnemyRobots[i].health == curTarget.health) &&
+                     (curLocation.distanceSquaredTo(shootableEnemyRobots[i].location) <
                       curLocation.distanceSquaredTo(curTarget.location))) {
-                curTarget = enemyRobots[i];
+                curTarget = shootableEnemyRobots[i];
             }
         }
 
         if (rc.canAttack(curTarget.location)) {
             // Attack!
             rc.attack(curTarget.location);
+            return true;
         }
         // Else, the only enemies in range are headquarters
         // We should then be moving toward the headquarters in tryToMove
+        return false;
     }
 
     private void tryToMove() throws GameActionException {
-        if ((!rc.isMovementReady()) || (hqOrder == HQLauncherOrder.STOP_MOVING)) {
+        if (!rc.isMovementReady()) {
             // No movement
             return;
         }
         // Else, the robot can move
+        
+        // Spot enemies and go and fight them (even if order is STOP_MOVING)
+        if ((shootableEnemyRobots.length == 0) &&
+            (enemyRobots.length != 0) &&
+            (rc.isActionReady())) {
+            // There are enemies to engage (and we can shoot this turn)!
+            Direction dir = curLocation.directionTo(enemyRobots[0].getLocation());
+            rc.setIndicatorString(String.valueOf(enemyRobots[0].getLocation()));
+            if (rc.canMove(dir)) {
+                rc.move(dir);
+                return;
+            }
+            // Else, we unfortunately can't step into battle
+        }
+
+        if ((rc.getRoundNum() <= DEFEND_BEFORE_ROUND) || (hqOrder == HQLauncherOrder.STOP_MOVING)) {
+            // No movement before given round
+            return;
+        }
 
         // Changing orders
         // TODO (post-sprint1): add more of these!
 
         // Rushing enemy headquarters (if spotted)
-        if (hqOrder != HQLauncherOrder.MASS_ASSAULT_LOCATION) {
-            for (RobotInfo robot : rc.senseNearbyRobots(-1, enemyTeam)) {
-                // Sit next to enemy headquarters (spawn camping)
-                if ((robot.type == RobotType.HEADQUARTERS) &&
-                    (curLocation.isWithinDistanceSquared(robot.location, 2))) {
-                    hqOrder = HQLauncherOrder.STOP_MOVING;
-                    break;
-                }
-                else if ((robot.type == RobotType.HEADQUARTERS) &&
-                    (curLocation.isWithinDistanceSquared(robot.location, 20))) {
-                    hqOrder = HQLauncherOrder.MASS_ASSAULT_LOCATION;
-                    hqTargetLocation = robot.location;
-                    break;
-                }
+        for (RobotInfo robot : rc.senseNearbyRobots(-1, enemyTeam)) {
+            if ((robot.type == RobotType.HEADQUARTERS) &&
+                (curLocation.isWithinDistanceSquared(robot.location, 1))) {
+                // Sit next to headquarters
+                hqOrder = HQLauncherOrder.STOP_MOVING;
+                break;
+            }
+            else if ((robot.type == RobotType.HEADQUARTERS) &&
+                (curLocation.isWithinDistanceSquared(robot.location, 20))) {
+                // Rush headquarters
+                hqOrder = HQLauncherOrder.MASS_ASSAULT_LOCATION;
+                hqTargetLocation = robot.location;
+                break;
             }
         }
 

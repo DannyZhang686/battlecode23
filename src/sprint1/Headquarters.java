@@ -178,7 +178,7 @@ public class Headquarters extends Robot {
                     }
                 }
             } else {
-                // Try two mana spawns, then spawn randomly (no adamantium spawn!)
+                // Try two mana spawns, then an adamantium spawn
                 int randIndex;
                 if (nearbyManaWells.length != 0) {
                     randIndex = rng.nextInt(nearbyManaWells.length);
@@ -187,6 +187,11 @@ public class Headquarters extends Robot {
                     }
                     randIndex = rng.nextInt(nearbyManaWells.length);
                     if (standardCarrierSpawn(nearbyManaWells[randIndex].getMapLocation())) {
+                        return;
+                    }
+                } else if (nearbyAdamantiumWells.length != 0) {
+                    randIndex = rng.nextInt(nearbyAdamantiumWells.length);
+                    if (standardCarrierSpawn(nearbyAdamantiumWells[randIndex].getMapLocation())) {
                         return;
                     }
                 }
