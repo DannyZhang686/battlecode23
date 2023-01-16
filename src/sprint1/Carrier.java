@@ -112,7 +112,7 @@ public class Carrier extends Robot {
             if (amount_adam > 38
                     && this.rc.canTransferResource(this.hqLocation, ResourceType.ADAMANTIUM, amount_adam)) {
                 this.rc.transferResource(this.hqLocation, ResourceType.ADAMANTIUM, amount_adam);
-                if (rng.nextInt(Math.max((100 - rc.getRoundNum()) / 20, 2)) == 0) {
+                if (rng.nextInt(Math.max((100 - rc.getRoundNum()) / 10, 4)) == 0) {
                     // Chance of switching away from adamantium
                     avoidWellLocation = hqTargetLocation;
                     hqTargetLocation = null;

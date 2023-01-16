@@ -54,7 +54,7 @@ public class Launcher extends Robot {
     public static final int RELAXED_PATHFINDING_DISTANCE = 2;
 
     // Round before which launchers don't move offensively (to defend against early rushes)
-    public static final int DEFEND_BEFORE_ROUND = 20;
+    public static final int DEFEND_BEFORE_ROUND = 0;
     
     // When the number of nearby friendly launchers is below this
     // value, there will be no random movement from launchers
@@ -114,13 +114,19 @@ public class Launcher extends Robot {
         friendlyRobots = rc.senseNearbyRobots(-1, friendlyTeam);
         enemyRobots = rc.senseNearbyRobots(-1, enemyTeam);
         if (!tryToShoot()) {
-            tryToMove();
+            tryToMove(true); // Try spotting enemies and move
             // Positioning has possibly changed
             curLocation = rc.getLocation();
             shootableEnemyRobots = rc.senseNearbyRobots(16, enemyTeam);
             friendlyRobots = rc.senseNearbyRobots(-1, friendlyTeam);
             enemyRobots = rc.senseNearbyRobots(-1, enemyTeam);
             tryToShoot();
+        }
+        else {
+            // Even if we shot already, we still want to move
+            // But we shouldn't (explicitly) move toward enemies
+            // since we don't have another shot this turn
+            tryToMove(false);
         }
     }
 
@@ -213,25 +219,27 @@ public class Launcher extends Robot {
         return false;
     }
 
-    private void tryToMove() throws GameActionException {
+    private void tryToMove(boolean shouldSpotEnemies) throws GameActionException {
         if (!rc.isMovementReady()) {
             // No movement
             return;
         }
         // Else, the robot can move
         
-        // Spot enemies and go and fight them (even if order is STOP_MOVING)
-        if ((shootableEnemyRobots.length == 0) &&
-            (enemyRobots.length != 0) &&
-            (rc.isActionReady())) {
-            // There are enemies to engage (and we can shoot this turn)!
-            Direction dir = curLocation.directionTo(enemyRobots[0].getLocation());
-            rc.setIndicatorString(String.valueOf(enemyRobots[0].getLocation()));
-            if (rc.canMove(dir)) {
-                rc.move(dir);
-                return;
+        if (shouldSpotEnemies) {
+            // Spot enemies and go and fight them (even if order is STOP_MOVING)
+            if ((shootableEnemyRobots.length == 0) &&
+                (enemyRobots.length != 0) &&
+                (rc.isActionReady())) {
+                // There are enemies to engage (and we can shoot this turn)!
+                Direction dir = curLocation.directionTo(enemyRobots[0].getLocation());
+                rc.setIndicatorString(String.valueOf(enemyRobots[0].getLocation()));
+                if (rc.canMove(dir)) {
+                    rc.move(dir);
+                    return;
+                }
+                // Else, we unfortunately can't step into battle
             }
-            // Else, we unfortunately can't step into battle
         }
 
         if ((rc.getRoundNum() <= DEFEND_BEFORE_ROUND) || (hqOrder == HQLauncherOrder.STOP_MOVING)) {
@@ -262,7 +270,12 @@ public class Launcher extends Robot {
         relaxedPathfinding = false; // By default
 
         // If not a leader, try to follow a leader
-        if ((leaderPriority != 0) && (hqOrder != HQLauncherOrder.MASS_ASSAULT_LOCATION)) {
+        // leaderPriority == 0 implies leader
+        // leaderPriority == MAX_LEADER_PRIORITY - 1 implies the robot is "independent"
+        // (defends base)
+        if ((leaderPriority != 0) &&
+            (leaderPriority != MAX_LEADER_PRIORITY-1) &&
+            (hqOrder != HQLauncherOrder.MASS_ASSAULT_LOCATION)) {
             MapLocation[] leaderLocations = new MapLocation[friendlyRobots.length];
             int numLeaders = 0;
             boolean foundOldLauncher = false;
@@ -273,8 +286,8 @@ public class Launcher extends Robot {
                         (curPriority == getLeaderPriority(robot.ID))) {
                         // This robot is a leader (and is a launcher)!
                         if (robot.getID() == followingLauncherID) {
-                            // Old carrier is still in range; follow this one
-                            // over other carriers
+                            // Old launcher is still in range; follow this one
+                            // over other launchers
                             foundOldLauncher = true;
                             relaxedPathfinding = true;
                             curMovementTarget = robot.getLocation();
@@ -334,10 +347,11 @@ public class Launcher extends Robot {
                     // logic and move randomly
                     curMovementTarget = curLocation;
                 }
-                if (rng.nextInt(2) == 0) {
+                if ((rng.nextInt(2) == 0) && (leaderPriority != MAX_LEADER_PRIORITY-1)) {
                     // Special logic for attacking: slowly move toward opposite
                     // corner of HQ location so that launchers are between
                     // enemy and carriers
+                    // 1/10 of launchers won't be affected by this
                     int effectiveRoundNum = rc.getRoundNum();
                     int friendlyLauncherCount = 0;
 
