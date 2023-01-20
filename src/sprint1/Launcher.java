@@ -236,12 +236,8 @@ public class Launcher extends Robot {
 
     private void tryToMove(boolean shouldSpotEnemies) throws GameActionException {
         if (!rc.isMovementReady()) {
-            // No movement
             return;
         }
-        // Else, the robot can move
-
-
         
         if (shouldSpotEnemies) {
             // Spot enemies and go and fight them (even if order is STOP_MOVING)
@@ -274,6 +270,8 @@ public class Launcher extends Robot {
         // Changing orders
         // TODO (post-sprint1): add more of these!
 
+
+        // TODO: edge case when our HQ is next to theirs. We should not just stop moving
         // Rushing enemy headquarters (if spotted)
         for (MapLocation location : nearbyEnemyHQLocations) {
             int dis = curLocation.distanceSquaredTo(location);
