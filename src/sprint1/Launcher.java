@@ -13,6 +13,8 @@ public class Launcher extends Robot {
     RobotInfo[] shootableEnemyRobots;
     // Within vision radius
     RobotInfo[] friendlyRobots, enemyRobots;
+    MapLocation[] nearbyEnemyHQLocations = new MapLocation[4];
+    int nearbyEnemyHQCount;
 
     // Location of HQ closest to the spawn of this launcher
     final MapLocation hqLocation;
@@ -110,6 +112,13 @@ public class Launcher extends Robot {
         shootableEnemyRobots = rc.senseNearbyRobots(16, enemyTeam);
         friendlyRobots = rc.senseNearbyRobots(-1, friendlyTeam);
         enemyRobots = rc.senseNearbyRobots(-1, enemyTeam);
+        nearbyEnemyHQCount = 0;
+        for (RobotInfo robot : enemyRobots) {
+            if (robot.type == RobotType.HEADQUARTERS) {
+                nearbyEnemyHQLocations[nearbyEnemyHQCount++] = robot.location;
+            }
+        }
+
         if (!tryToShoot()) {
             tryToMove(true); // Try spotting enemies and move
             // Positioning has possibly changed
@@ -216,12 +225,23 @@ public class Launcher extends Robot {
         return false;
     }
 
+
+    private boolean isSafeLocation(MapLocation location) {
+        for (int i = 0; i < nearbyEnemyHQCount; i++) {
+            if (location.distanceSquaredTo(nearbyEnemyHQLocations[i]) <= 9)
+                return false;
+        }
+        return true;
+    }
+
     private void tryToMove(boolean shouldSpotEnemies) throws GameActionException {
         if (!rc.isMovementReady()) {
             // No movement
             return;
         }
         // Else, the robot can move
+
+
         
         if (shouldSpotEnemies) {
             // Spot enemies and go and fight them (even if order is STOP_MOVING)
@@ -231,11 +251,18 @@ public class Launcher extends Robot {
                 // There are enemies to engage (and we can shoot this turn)!
                 Direction dir = curLocation.directionTo(enemyRobots[0].getLocation());
                 rc.setIndicatorString(String.valueOf(enemyRobots[0].getLocation()));
+
+                MapLocation newLoc = curLocation.add(dir);
+                if (!isSafeLocation(newLoc)) {
+                    // if dir is not safe, try a nearby square? (instead of just returning)
+                    return;
+                }
+
                 if (rc.canMove(dir)) {
                     rc.move(dir);
                     return;
                 }
-                // Else, we unfortunately can't step into battle
+                // Else, we can not step into battle
             }
         }
 
@@ -248,18 +275,18 @@ public class Launcher extends Robot {
         // TODO (post-sprint1): add more of these!
 
         // Rushing enemy headquarters (if spotted)
-        for (RobotInfo robot : rc.senseNearbyRobots(-1, enemyTeam)) {
-            if ((robot.type == RobotType.HEADQUARTERS) &&
-                (curLocation.isWithinDistanceSquared(robot.location, 1))) {
-                // Sit next to headquarters
+        for (MapLocation location : nearbyEnemyHQLocations) {
+            int dis = curLocation.distanceSquaredTo(location);
+            if (dis <= 16 || dis == 18) {
+                // Sit as close as possible to HQ without getting shot at (distance 9)
+                // watch out: can go from 18 -> 8 in one move
                 hqOrder = HQLauncherOrder.STOP_MOVING;
                 break;
             }
-            else if ((robot.type == RobotType.HEADQUARTERS) &&
-                (curLocation.isWithinDistanceSquared(robot.location, 20))) {
+            else if (curLocation.isWithinDistanceSquared(location, 20)) {
                 // Rush headquarters
                 hqOrder = HQLauncherOrder.MASS_ASSAULT_LOCATION;
-                hqTargetLocation = robot.location;
+                hqTargetLocation = location;
                 break;
             }
         }

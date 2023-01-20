@@ -7,7 +7,6 @@ public class Node<T> {
 
     public Node(T obj) {
         val = obj;
-
         next = null;
     }
 }
