@@ -331,13 +331,32 @@ public class Carrier extends Robot {
         }
 
         // If we're about to die, drop payload and run
-        if (rc.getHealth() <= 60 && rc.getWeight() > 0) {
-            // try surrounding 8 squares to dump, should be space
-            for (Direction d : Constants.ALL_DIRECTIONS) {
-                MapLocation mp = rc_loc.add(d);
-                if (!rc.isLocationOccupied(mp) && rc.canAttack(mp)) {
-                    rc.attack(mp);
-                    break;
+        if (rc.getHealth() <= 30 && rc.getWeight() > 0 && fleeTurnsRemaining > 0) {
+            RobotInfo[] enemyRobots = rc.senseNearbyRobots(-1, enemyTeam);
+            closestThreat = null;
+            int closestThreatDist = 100000;
+            for (RobotInfo robot : enemyRobots) {
+                RobotType robotType = robot.getType();
+                if (robotType != RobotType.HEADQUARTERS) {
+                    int threatDistance = rc_loc.distanceSquaredTo(robot.getLocation());
+                    if (threatDistance < closestThreatDist) {
+                        closestThreatDist = threatDistance;
+                        closestThreat = robot;
+                    }
+                }
+            }
+            
+            if ((closestThreat != null) && (rc.canAttack(closestThreat.getLocation()))) {
+                rc.attack(closestThreat.getLocation());
+            }
+            else {
+                // try surrounding 8 squares to dump, should be space
+                for (Direction d : Constants.ALL_DIRECTIONS) {
+                    MapLocation mp = rc_loc.add(d);
+                    if (!rc.isLocationOccupied(mp) && rc.canAttack(mp)) {
+                        rc.attack(mp);
+                        break;
+                    }
                 }
             }
         }
@@ -353,20 +372,18 @@ public class Carrier extends Robot {
         int health = rc.getHealth();
         int enemyLaunchers = 0;
 
-        RobotInfo[] nearbyRobots = this.rc.senseNearbyRobots();
+        RobotInfo[] enemyRobots = rc.senseNearbyRobots(-1, enemyTeam);
         RobotInfo closestThreat = null;
         int closestThreatDist = 100000;
-        for (RobotInfo robot : nearbyRobots) {
-            if (robot.getTeam() == enemyTeam) {
-                RobotType robotType = robot.getType();
-                if (robotType == RobotType.LAUNCHER) {
-                    int threatDistance = rc_loc.distanceSquaredTo(robot.getLocation());
-                    if (threatDistance < closestThreatDist) {
-                        closestThreatDist = threatDistance;
-                        closestThreat = robot;
-                    }
-                    enemyLaunchers++;
+        for (RobotInfo robot : enemyRobots) {
+            RobotType robotType = robot.getType();
+            if (robotType == RobotType.LAUNCHER) {
+                int threatDistance = rc_loc.distanceSquaredTo(robot.getLocation());
+                if (threatDistance < closestThreatDist) {
+                    closestThreatDist = threatDistance;
+                    closestThreat = robot;
                 }
+                enemyLaunchers++;
             }
         }
 

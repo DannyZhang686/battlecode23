@@ -104,12 +104,14 @@ public class Headquarters extends Robot {
         int mana = rc.getResourceAmount(ResourceType.MANA);
         if (curRound < 10) {
             // In the opening, try to spawn carriers first
-            if (adamantium >= Constants.CARRIER_COST_AD) {
+            while (adamantium >= Constants.CARRIER_COST_AD) {
                 tryToSpawnCarrier();
+                adamantium = rc.getResourceAmount(ResourceType.ADAMANTIUM);
             }
-            if (mana >= Constants.LAUNCHER_COST_MN) {
+            while (mana >= Constants.LAUNCHER_COST_MN) {
                 int launcher_id = tryToSpawnLauncher();
-
+                mana = rc.getResourceAmount(ResourceType.MANA);
+                
                 if (launcher_id != 0 && spawnedLaunchers <= 3) {
                     Direction hq_dir = MAP_CENTER.directionTo(rc_loc);
                     MapLocation spawn_location = MAP_CENTER.add(hq_dir).add(hq_dir);
@@ -125,7 +127,7 @@ public class Headquarters extends Robot {
                     // irc_writer.writeBufferEvent(IrcEvent.HOLD_LOCATION, data[0], data[1]);
                 }
             }
-        } else if (curRound < 150) {
+        } else if (curRound < 500) {
             // Try to spawn launchers, then carriers
             if (rc.getResourceAmount(ResourceType.MANA) >= Constants.LAUNCHER_COST_MN) {
                 tryToSpawnLauncher();

@@ -232,7 +232,9 @@ public class Launcher extends Robot {
                     break;
                 }
             }
-        } else if (leaderPriority != MAX_LEADER_PRIORITY - 1) {
+        } 
+        
+        if ((curMovementTarget == null) && (leaderPriority != MAX_LEADER_PRIORITY - 1)) {
             // Slowly move toward opposite corner of HQ location
             // 1/10 of launchers won't be affected by this
             int effectiveRoundNum = rc.getRoundNum();
@@ -256,10 +258,10 @@ public class Launcher extends Robot {
 
             double healthFactor = rc.getHealth() / 200.0f; // Launcher max health
 
-            // Between -1 and 1
-            double overallFactor = (roundNumFactor + launcherCountFactor + 2 * healthFactor) / 2 - 1;
+            // Between -0.4 and 1
+            double overallFactor = (roundNumFactor + launcherCountFactor + 2 * healthFactor) * 1.4f / 4 - 0.4f;
 
-            assert overallFactor >= -1 && overallFactor <= 1;
+            assert overallFactor >= -0.4f && overallFactor <= 1;
 
             int targetX = (rc.getMapWidth() / 2)
                     + (int) (overallFactor * (rc.getMapWidth() / 2 - hqLocation.x));
@@ -309,7 +311,8 @@ public class Launcher extends Robot {
                     turnsRemaining = MAX_TURNS_REMAINING;
                 }
             }
-        } else {
+        }
+        if (curMovementTarget != null) {
             moveTowardsTarget(curMovementTarget);
         }
     }
