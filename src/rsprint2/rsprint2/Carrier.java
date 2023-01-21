@@ -6,7 +6,6 @@ import rsprint2.utils.RobotMath;
 
 public class Carrier extends Robot {
 
-    MapLocation curLocation;
     MapLocation curMovementTarget;
     boolean relaxedPathfinding;
 
@@ -69,7 +68,7 @@ public class Carrier extends Robot {
         }
         hqTargetLocation = null;
         avoidWellLocation = null;
-        curLocation = rc.getLocation();
+        rc_loc = rc.getLocation();
         fruitlessSearchTurns = touristStuckTurns = 0;
         curDestination = -1;
 
@@ -91,7 +90,7 @@ public class Carrier extends Robot {
 
         for (RobotInfo info : this.rc.senseNearbyRobots()) {
             if (info.getType() == RobotType.HEADQUARTERS) {
-                int theDist = RobotMath.getChessboardDistance(info.getLocation(), curLocation);
+                int theDist = RobotMath.getChessboardDistance(info.getLocation(), rc_loc);
                 if (theDist < closestHQDistance) {
                     closestHQDistance = theDist;
                     closestHQLocation = info.getLocation();
@@ -106,9 +105,10 @@ public class Carrier extends Robot {
         rc.setIndicatorString(String.valueOf(hqOrder));
 
         runSetup();
-        curLocation = rc.getLocation();
 
         avoidThreats();
+
+        runSetup();
 
         if (hqOrder != HQCarrierOrder.CARRY_ANCHOR) {
             int amount_adam = this.rc.getResourceAmount(ResourceType.ADAMANTIUM);
@@ -155,9 +155,13 @@ public class Carrier extends Robot {
         }
 
         if (hqOrder == HQCarrierOrder.CARRY_ANCHOR) {
-            int curIslandIndex = rc.senseIsland(curLocation);
+            int curIslandIndex = rc.senseIsland(rc_loc);
             if (rc.canPlaceAnchor()) {
                 // curIslandIndex should never be -1
+                if (curIslandIndex == -1) {
+                    throw new GameActionException(GameActionExceptionType.INTERNAL_ERROR, "get away from me");
+                }
+
                 if (rc.senseTeamOccupyingIsland(curIslandIndex) != friendlyTeam) {
                     // This island is neutral
                     // Note: apparently placing another anchor on a friendly island
@@ -201,7 +205,7 @@ public class Carrier extends Robot {
                 if (rc.senseTeamOccupyingIsland(islandIndex) == Team.NEUTRAL) {
                     // Open island!
                     for (MapLocation theLocation : rc.senseNearbyIslandLocations(islandIndex)) {
-                        int theDist = RobotMath.getChessboardDistance(theLocation, curLocation);
+                        int theDist = RobotMath.getChessboardDistance(theLocation, rc_loc);
                         if (theDist < curDist) {
                             curDist = theDist;
                             closestNeutralIslandLoc = theLocation;
@@ -270,7 +274,7 @@ public class Carrier extends Robot {
         // carriers need to be right on top of the target)
         // Note: if we're just visiting around the map, it's okay to just be
         // adjacent to the given destination
-        if ((!curLocation.isAdjacentTo(targetLocation)) ||
+        if ((!rc_loc.isAdjacentTo(targetLocation)) ||
                 ((hqOrder == HQCarrierOrder.CARRY_ANCHOR) && (curDestination == -1))) {
             if (!moveTowardsTarget(targetLocation)) {
                 // Reset curDestination if stuck for too long
@@ -285,8 +289,8 @@ public class Carrier extends Robot {
                 return;
             } else {
                 touristStuckTurns = 0;
-                curLocation = rc.getLocation();
-                if (!curLocation.isAdjacentTo(targetLocation) && !moveTowardsTarget(targetLocation)) {
+                rc_loc = rc.getLocation();
+                if (!rc_loc.isAdjacentTo(targetLocation) && !moveTowardsTarget(targetLocation)) {
                     // System.out.println("half stuck sadge :(");
                     return;
                 }
@@ -302,7 +306,7 @@ public class Carrier extends Robot {
             }
         } else {
             // Reset curDestination if we've arrived
-            if (curLocation.isAdjacentTo(targetLocation)) {
+            if (rc_loc.isAdjacentTo(targetLocation)) {
                 if (curDestination != -1) {
                     curDestination = rng.nextInt(NUM_TOURIST_DESTINATIONS);
                 }
@@ -310,38 +314,54 @@ public class Carrier extends Robot {
         }
     }
 
-    private void avoidThreats() throws GameActionException{
+    private void avoidThreats() throws GameActionException {
         // identify threats
         RobotInfo closestThreat = closestThreat();
 
-        if(closestThreat != null){
+        if (closestThreat != null) {
             rc.setIndicatorString("Flee! Closest threat location:" + String.valueOf(closestThreat.getLocation()));
             Direction dir = rc_loc.directionTo(closestThreat.getLocation());
             fleeDirection = dir.opposite();
             fleeTurnsRemaining = MAX_FLEE_REMAINING;
+
+            // If they're close enough to be in range, we should always attack
+            if (rc.canAttack(closestThreat.getLocation())) {
+                rc.attack(closestThreat.getLocation());
+            }
         }
 
-        if(fleeTurnsRemaining > 0){
-            while(fleeTurnsRemaining > 0 && moveTowardsDirection(fleeDirection)){
-                fleeTurnsRemaining--;
+        // If we're about to die, drop payload and run
+        if (rc.getHealth() <= 60 && rc.getWeight() > 0) {
+            // try surrounding 8 squares to dump, should be space
+            for (Direction d : Constants.ALL_DIRECTIONS) {
+                MapLocation mp = rc_loc.add(d);
+                if (!rc.isLocationOccupied(mp) && rc.canAttack(mp)) {
+                    rc.attack(mp);
+                    break;
+                }
             }
+        }
+
+        while (fleeTurnsRemaining > 0 && moveTowardsDirection(fleeDirection)) {
+            fleeTurnsRemaining--;
+            super_recalibrate();
         }
     }
 
     // return the closest enemy robot that is a threat
-    private RobotInfo closestThreat() throws GameActionException{
+    private RobotInfo closestThreat() throws GameActionException {
         int health = rc.getHealth();
         int enemyLaunchers = 0;
 
-        RobotInfo[] nearbyRobots  = this.rc.senseNearbyRobots();
+        RobotInfo[] nearbyRobots = this.rc.senseNearbyRobots();
         RobotInfo closestThreat = null;
         int closestThreatDist = 100000;
-        for(RobotInfo robot: nearbyRobots){
-            if(robot.getTeam() == enemyTeam){
+        for (RobotInfo robot : nearbyRobots) {
+            if (robot.getTeam() == enemyTeam) {
                 RobotType robotType = robot.getType();
-                if(robotType == RobotType.LAUNCHER){
+                if (robotType == RobotType.LAUNCHER) {
                     int threatDistance = rc_loc.distanceSquaredTo(robot.getLocation());
-                    if(threatDistance < closestThreatDist){
+                    if (threatDistance < closestThreatDist) {
                         closestThreatDist = threatDistance;
                         closestThreat = robot;
                     }
@@ -352,12 +372,12 @@ public class Carrier extends Robot {
 
         // Determine if robot is under threat
         // TODO: tuning
-        if( (enemyLaunchers >= 1 && health < SCARED_THRESHOLD) 
-            || (enemyLaunchers >= 2) ){
+        if ((enemyLaunchers >= 1 && health < SCARED_THRESHOLD)
+                || (enemyLaunchers >= 2)) {
             return closestThreat;
         }
 
         return null;
     }
-    
+
 }

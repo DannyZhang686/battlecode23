@@ -35,7 +35,7 @@ public class Launcher extends Robot {
 
     // When the number of nearby friendly launchers is below this
     // value, there will be no random movement from launchers
-    public static final int NEARBY_LAUNCHER_THRESHOLD = 4;
+    public static final int NEARBY_LAUNCHER_THRESHOLD = 0;
 
     // Launchers are more willing to push forward:
     // - When the round number is large, and
@@ -89,6 +89,7 @@ public class Launcher extends Robot {
     public void run() throws GameActionException {
         runSetup();
         recalibrate();
+        rc.setIndicatorString(String.valueOf(leaderPriority));
 
         if ((enemyRobots.length == nearbyEnemyHQCount) && (rc.isMovementReady())) {
             // No enemies in vision
@@ -190,25 +191,24 @@ public class Launcher extends Robot {
             }
         }
 
-        if (rc.canAttack(curTarget.location)) {
-            // Attack!
-            rc.attack(curTarget.location);
-        }
+        assert rc.canAttack(curTarget.location);
+
+        rc.attack(curTarget.location);
     }
 
     private void macroMove() throws GameActionException {
         if (hqSpotted) {
             // curMovementTarget already set correctly
-        }
-        else if ((leaderPriority != 0) && (leaderPriority != MAX_LEADER_PRIORITY - 1)) {
+        } else if ((leaderPriority != 0) && (leaderPriority != MAX_LEADER_PRIORITY - 1)) {
             MapLocation[] leaderLocations = new MapLocation[friendlyRobots.length];
             int numLeaders = 0;
             boolean foundOldLauncher = false;
+            curMovementTarget = null;
 
             for (int curPriority = 0; curPriority < Math.min(leaderPriority, MAX_LEADER_PRIORITY); ++curPriority) {
                 for (RobotInfo robot : friendlyRobots) {
                     if ((robot.type == RobotType.LAUNCHER) &&
-                        (curPriority == getLeaderPriority(robot.ID))) {
+                            (curPriority == getLeaderPriority(robot.ID))) {
                         // This robot is a leader (and a launcher)!
                         if (robot.getID() == followingLauncherID) {
                             // Old launcher is still in range; follow this one
@@ -232,32 +232,34 @@ public class Launcher extends Robot {
                     break;
                 }
             }
-        }
-        else if ((rng.nextInt(3) != 0) && (leaderPriority != MAX_LEADER_PRIORITY - 1)) {
+        } else if (leaderPriority != MAX_LEADER_PRIORITY - 1) {
             // Slowly move toward opposite corner of HQ location
             // 1/10 of launchers won't be affected by this
             int effectiveRoundNum = rc.getRoundNum();
-            int friendlyLauncherCount = 0;
-
             effectiveRoundNum = Math.max(effectiveRoundNum, MIN_PUSH_ROUND);
             effectiveRoundNum = Math.min(effectiveRoundNum, MAX_PUSH_ROUND);
+            double roundNumFactor = (effectiveRoundNum - MIN_PUSH_ROUND) * 1.0f /
+                    (MAX_PUSH_ROUND - MIN_PUSH_ROUND);
+
+            int friendlyLauncherCount = 0;
             for (RobotInfo robot : friendlyRobots) {
                 if (robot.getType() == RobotType.LAUNCHER) {
                     friendlyLauncherCount++;
                 }
             }
-
-            double roundNumFactor = (effectiveRoundNum - MIN_PUSH_ROUND) * 1.0f /
-                    (MAX_PUSH_ROUND - MIN_PUSH_ROUND);
-            double launcherCountFactor = friendlyLauncherCount * 1.0f / friendlyRobots.length;
-            launcherCountFactor = Math.max(launcherCountFactor, MIN_LAUNCHER_PROPORTION);
-            launcherCountFactor = Math.min(launcherCountFactor, MAX_LAUNCHER_PROPORTION);
+            double launcherCountFactor = friendlyRobots.length == 0 ? MIN_LAUNCHER_PROPORTION
+                    : friendlyLauncherCount * 1.0f / friendlyRobots.length;
+            launcherCountFactor = Math.max(Math.min(launcherCountFactor, MAX_LAUNCHER_PROPORTION),
+                    MIN_LAUNCHER_PROPORTION);
             launcherCountFactor = (launcherCountFactor - MIN_LAUNCHER_PROPORTION) /
                     (MAX_LAUNCHER_PROPORTION - MIN_LAUNCHER_PROPORTION);
-            double healthFactor = rc.getHealth() * 1.0f / 200; // Launcher max health
+
+            double healthFactor = rc.getHealth() / 200.0f; // Launcher max health
 
             // Between -1 and 1
             double overallFactor = (roundNumFactor + launcherCountFactor + 2 * healthFactor) / 2 - 1;
+
+            assert overallFactor >= -1 && overallFactor <= 1;
 
             int targetX = (rc.getMapWidth() / 2)
                     + (int) (overallFactor * (rc.getMapWidth() / 2 - hqLocation.x));
@@ -265,9 +267,12 @@ public class Launcher extends Robot {
                     + (int) (overallFactor * (rc.getMapHeight() / 2 - hqLocation.y));
 
             curMovementTarget = new MapLocation(targetX, targetY);
-        } else {
+        }
+
+        if (curMovementTarget == null) {
             // Random movement to avoid blockages
             int friendlyLauncherCount = 0;
+
             for (RobotInfo robot : friendlyRobots) {
                 if (robot.getType() == RobotType.LAUNCHER) {
                     friendlyLauncherCount++;
@@ -304,8 +309,7 @@ public class Launcher extends Robot {
                     turnsRemaining = MAX_TURNS_REMAINING;
                 }
             }
-        }
-        if (curMovementTarget != null) {
+        } else {
             moveTowardsTarget(curMovementTarget);
         }
     }
@@ -313,18 +317,21 @@ public class Launcher extends Robot {
     private void microMove(boolean towardEnemy) throws GameActionException {
         // Get away from those in outer vision ring, plus the 13 square (>= 13)
         MapLocation target = rc_loc;
+
         for (RobotInfo ri : enemyRobots) { // including enemy HQ
             if (((ri.getType() == RobotType.LAUNCHER) || (ri.getType() == RobotType.DESTABILIZER))
-                && (ri.location.distanceSquaredTo(rc_loc) >= 13)) {
+                    && (ri.location.distanceSquaredTo(rc_loc) >= 13)) {
                 // Consider this robot in the calculations
-                target.add(ri.location.directionTo(rc_loc));
+                target = target.add(ri.location.directionTo(rc_loc));
             }
         }
+
         Direction d = rc_loc.directionTo(target);
-        if (towardEnemy) {
-            d = d.opposite();
-        }
+
         if (d != Direction.CENTER) {
+            if (towardEnemy) {
+                d = d.opposite();
+            }
             moveTowardsTarget(rc_loc.add(d));
         }
     }
