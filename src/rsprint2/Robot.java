@@ -18,6 +18,19 @@ public abstract class Robot {
 
     Team friendlyTeam, enemyTeam;
 
+    protected MapLocation current_target = null;
+    int turnCount;
+    Direction lockedDirection;
+    public static final int MAX_FRUSTRATED_TURNS = 10;
+
+    // Within shooting radius
+    RobotInfo[] shootableEnemyRobots;
+    // Within vision radius
+    RobotInfo[] friendlyRobots, enemyRobots; // note: enemy HQ is a robot too
+    MapLocation[] nearbyEnemyHQLocations = new MapLocation[4];
+    int nearbyEnemyHQCount, shootableEnemyHQCount;
+    
+    
     public Robot(RobotController rc) throws GameActionException {
         this.rc = rc;
         rng = new Random(31415926 ^ 271828 ^ rc.getID());
@@ -44,19 +57,29 @@ public abstract class Robot {
 
     public abstract void run() throws GameActionException;
 
+    public void super_recalibrate() throws GameActionException {
+        rc_loc = rc.getLocation();
+        enemyRobots = rc.senseNearbyRobots(20, enemyTeam);
+        shootableEnemyRobots = rc.senseNearbyRobots(16, enemyTeam);
+        friendlyRobots = rc.senseNearbyRobots(-1, friendlyTeam);
+
+        nearbyEnemyHQCount = shootableEnemyHQCount = 0;
+        for (RobotInfo robot : enemyRobots) {
+            if (robot.type == RobotType.HEADQUARTERS) {
+                nearbyEnemyHQLocations[nearbyEnemyHQCount++] = robot.getLocation();
+                if (rc_loc.distanceSquaredTo(robot.getLocation()) <= 16) {
+                    shootableEnemyHQCount++;
+                }
+            }
+        }
+    }
+
     protected void runSetup() {
         rc_loc = rc.getLocation();
     }
 
-    protected MapLocation current_target = null;
-    protected Direction bug_wall_state = null;
-    int turnCount;
-    int MAX_FRUSTRATED_TURNS = 10;
-    Direction lockedDirection;
-
     protected void setCurrentTarget(MapLocation ct) {
         current_target = ct;
-        bug_wall_state = null;
     }
 
     protected boolean moveTowardsTarget(MapLocation targetLocation) throws GameActionException {
@@ -188,16 +211,8 @@ public abstract class Robot {
         // Guaranteed to return a suboptimal direction
         turnCount++;
         if (dirn_raylen < dirp_raylen) {
-            // bug_wall_state = dirn.rotateLeft();
-            // Direction perp = bug_wall_state.opposite();
-            bug_wall_state = dirn;
-            
             return dirp;
         }
-
-        // bug_wall_state = dirp.rotateRight();
-        // Direction perp = bug_wall_state.opposite();
-        bug_wall_state = dirp;
         return dirn;
     }
 
@@ -277,7 +292,7 @@ public abstract class Robot {
     }
 
     protected boolean tryToMoveInDirection(Direction dir) throws GameActionException {
-        if (rc.canMove(dir)) {
+        if (okMove(dir)) {
             // Great :)
             rc.move(dir);
             return true;
@@ -285,19 +300,19 @@ public abstract class Robot {
             Direction next = RobotMath.getNextDirection(dir);
             Direction prev = RobotMath.getPreviousDirection(dir);
             if (rng.nextInt(2) == 0) {
-                if (rc.canMove(next)) {
+                if (okMove(next)) {
                     rc.move(next);
                     return true;
-                } else if (rc.canMove(prev)) {
+                } else if (okMove(prev)) {
                     rc.move(prev);
                     return true;
                 }
             } else {
                 // Opposite order
-                if (rc.canMove(prev)) {
+                if (okMove(prev)) {
                     rc.move(prev);
                     return true;
-                } else if (rc.canMove(next)) {
+                } else if (okMove(next)) {
                     rc.move(next);
                     return true;
                 }
@@ -305,19 +320,19 @@ public abstract class Robot {
             Direction next2 = RobotMath.getNextDirection(next);
             Direction prev2 = RobotMath.getPreviousDirection(prev);
             if (rng.nextInt(2) == 0) {
-                if (rc.canMove(next2)) {
+                if (okMove(next2)) {
                     rc.move(next2);
                     return true;
-                } else if (rc.canMove(prev2)) {
+                } else if (okMove(prev2)) {
                     rc.move(prev2);
                     return true;
                 }
             } else {
                 // Opposite order
-                if (rc.canMove(prev2)) {
+                if (okMove(prev2)) {
                     rc.move(prev2);
                     return true;
-                } else if (rc.canMove(next2)) {
+                } else if (okMove(next2)) {
                     rc.move(next2);
                     return true;
                 }
@@ -325,6 +340,10 @@ public abstract class Robot {
         }
         // Couldn't move
         return false;
+    }
+
+    private boolean okMove(Direction dir) throws GameActionException {
+        return rc.canMove(dir) && (!isSafeLocation(rc_loc) || isSafeLocation(rc_loc.add(dir)));
     }
 
     public Direction[] getMoveableDirections() {
@@ -342,5 +361,14 @@ public abstract class Robot {
             ret[n] = moveableDirections[n];
 
         return ret;
+    }
+
+    private boolean isSafeLocation(MapLocation location) {
+        for (int i = 0; i < nearbyEnemyHQCount; i++) {
+            if (location.isWithinDistanceSquared(nearbyEnemyHQLocations[i], 9)) {
+                return false;
+            }
+        }
+        return true;
     }
 }

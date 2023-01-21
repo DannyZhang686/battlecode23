@@ -60,14 +60,14 @@ public class IrcWriter {
                 switch (event) {
                     case INIT_HQ_SYNC:
                         map.addOtherHq(IrcEvent.parseInitHqSyncEvent(data));
-                        processInitHqSyncEventFrag(map, getNextBufferHead(buffer_read_head));
+                        processInitHqSyncEventFrag(map, IrcUtils.getNextBufferHead(buffer_read_head));
                     case BROADCAST_LOCATION_TYPE:
                         Tuple<MapLocation, LocationType> tuple = IrcEvent.parseBroadcastLocationType(data);
                         map.updateLocationTypeAtMapLocation(tuple.first, tuple.second);
                 }
             }
 
-            buffer_read_head = getNthBufferHead(buffer_read_head, data_len);
+            buffer_read_head = IrcUtils.getNthBufferHead(buffer_read_head, data_len);
         }
 
         buffer_write_head = rc.readSharedArray(IrcConstants.IRC_WRITE_HEAD_INT);
@@ -95,9 +95,7 @@ public class IrcWriter {
 
     private boolean writeBufferEvent(IrcEvent event, int data, int frag[]) throws GameActionException {
         for (int i = 0; i < 1 + (frag == null ? 0 : frag.length); i++) {
-            if (rc.readSharedArray(getNthBufferHead(buffer_write_head, i)) != 0) {
-                // System.out.println("index " + getNthBufferHead(buffer_write_head, i) + " not
-                // free, can't write :(");
+            if (rc.readSharedArray(IrcUtils.getNthBufferHead(buffer_write_head, i)) != 0) {
                 return false;
             }
         }
@@ -111,17 +109,17 @@ public class IrcWriter {
         rc.writeSharedArray(buffer_write_head, data);
 
         if (frag == null) {
-            buffer_write_head = getNextBufferHead(buffer_write_head);
+            buffer_write_head = IrcUtils.getNextBufferHead(buffer_write_head);
             rc.writeSharedArray(IrcConstants.IRC_WRITE_HEAD_INT, buffer_write_head);
             return true;
         }
 
         for (int i = 0; i < frag.length; i++) {
-            assert rc.readSharedArray(getNthBufferHead(buffer_write_head, 1 + i)) == 0;
-            rc.writeSharedArray(getNthBufferHead(buffer_write_head, 1 + i), frag[i]);
+            assert rc.readSharedArray(IrcUtils.getNthBufferHead(buffer_write_head, 1 + i)) == 0;
+            rc.writeSharedArray(IrcUtils.getNthBufferHead(buffer_write_head, 1 + i), frag[i]);
         }
 
-        buffer_write_head = getNthBufferHead(buffer_write_head, 1 + frag.length);
+        buffer_write_head = IrcUtils.getNthBufferHead(buffer_write_head, 1 + frag.length);
         rc.writeSharedArray(IrcConstants.IRC_WRITE_HEAD_INT, buffer_write_head);
 
         return true;
@@ -150,7 +148,7 @@ public class IrcWriter {
 
     private void processInitHqSyncEventFrag(HQMap map, int frag_offset) throws GameActionException {
         for (int a = 0; a < 27; a++) {
-            int frag_data = rc.readSharedArray(getNthBufferHead(frag_offset, a));
+            int frag_data = rc.readSharedArray(IrcUtils.getNthBufferHead(frag_offset, a));
             int aTimesFour = a * 4; // Saves a few bytecodes (recomputation avoided)
 
             for (int b = 3; b >= 0; b--) {
@@ -162,23 +160,7 @@ public class IrcWriter {
 
     private void clearBuffer(int start, int len) throws GameActionException {
         for (int i = 0; i < len; i++) {
-            rc.writeSharedArray(getNthBufferHead(start, i), 0);
+            rc.writeSharedArray(IrcUtils.getNthBufferHead(start, i), 0);
         }
-    }
-
-    private static int getNextBufferHead(int head) {
-        return (head == IrcConstants.IRC_BUFFER_END - 1) ? IrcConstants.IRC_BUFFER_START : head + 1;
-    }
-
-    private static int getNthBufferHead(int head, int n) {
-        assert n < IrcConstants.IRC_BUFFER_LEN;
-
-        head += n;
-
-        if (head >= IrcConstants.IRC_BUFFER_END) {
-            return head - IrcConstants.IRC_BUFFER_LEN;
-        }
-
-        return head;
     }
 }
