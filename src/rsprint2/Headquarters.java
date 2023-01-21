@@ -31,11 +31,11 @@ public class Headquarters extends Robot {
 
         HQ_ID = irc_reader.addAndGetHQID();
 
-        // Initialize HQ Channel
-        irc_writer = new IrcWriter(rc_loc, rc, HQ_ID);
-
         // Initialize the map
         map = new HQMap(rc_loc, rc);
+
+        // Initialize HQ Channel
+        irc_writer = new IrcWriter(rc_loc, rc, HQ_ID);
 
         friendlyTeam = rc.getTeam();
         enemyTeam = this.friendlyTeam == Team.A ? Team.B : Team.A;
@@ -73,16 +73,17 @@ public class Headquarters extends Robot {
         }
     }
 
-	// TODO: Calculate enemy HQ locations, first with facts and logic, then by sending carrier scouts to determine which orientations are impossible
+    // TODO: Calculate enemy HQ locations, first with facts and logic, then by
+    // sending carrier scouts to determine which orientations are impossible
     // how to get carrier scouts to report back?
-    boolean[] isPossibleOrientation = {true, true, true};
+    boolean[] isPossibleOrientation = { true, true, true };
     // 0 = hor, 1 = vert, 2 = rot (aka both 0 and 1)
 
     @Override
     public void run() throws GameActionException {
         runSetup();
 
-        // this.irc_writer.sync(this.map);
+        this.irc_writer.sync(this.map);
 
         if (rc.isActionReady())
             tryToSpawn();
@@ -239,7 +240,8 @@ public class Headquarters extends Robot {
                 // At the start, avoid spawning launchers on currents because it disperses them
                 int weightedDistanceSquared = MAP_CENTER.distanceSquaredTo(location);
                 if ((curRound < 20) && (rc.senseMapInfo(location).getCurrentDirection() != Direction.CENTER)) {
-                    weightedDistanceSquared += (int) (CURRENT_DISTANCE_PENALTY_FACTOR * Math.sqrt(weightedDistanceSquared));
+                    weightedDistanceSquared += (int) (CURRENT_DISTANCE_PENALTY_FACTOR
+                            * Math.sqrt(weightedDistanceSquared));
                 }
                 if (weightedDistanceSquared < distanceSquaredFromCenter) {
                     distanceSquaredFromCenter = weightedDistanceSquared;

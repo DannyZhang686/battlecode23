@@ -13,8 +13,8 @@ public enum IrcEvent {
     HOLD_LOCATION(3);
 
     public static final int IRC_EVENT_BITS = 2;
-    public static final int IRC_MAX_EVENTS_BITS = 14; // 16 - 2 for HQ in IrcWriter
-    public static final int IRC_MAX_EVENTS_BITS_ASSERTER = 0b11111111111111;
+    public static final int IRC_MAX_EVENTS_BITS = 14 - IRC_EVENT_BITS; // 16 - 2 for HQ in IrcWriter - IRC_EVENT_BITS
+    public static final int IRC_MAX_EVENTS_BITS_ASSERTER = 0b111111111111;
 
     private final int value;
 
@@ -55,30 +55,24 @@ public enum IrcEvent {
         }
     }
 
-    public static Tuple<MapLocation, LocationType> parseBroadcastLocationType(int data) {
-        LocationType loc_type = LocationType.fromValue(data % 16);
-        data /= 16;
+    public static int serializeInitHqSyncEvent(MapLocation loc) {
+        return loc.y * 64 + loc.x;
+    }
 
-        int loc_x = data % 64;
-        data /= 64;
-
-        int loc_y = data % 64;
-
-        return new Tuple<>(new MapLocation(loc_x, loc_y), loc_type);
+    public static MapLocation parseInitHqSyncEvent(int data) {
+        return new MapLocation(data % 64, data / 64);
     }
 
     public static int serializeBroadcastLocationType(MapLocation loc, LocationType type) {
-        int data = loc.y;
-
-        data *= 64;
-        data += loc.x;
-
-        data *= 16;
-        data += type.getValue();
+        int data = loc.y * 1024 + loc.x * 16 + type.getValue();
 
         assert data <= IRC_MAX_EVENTS_BITS_ASSERTER;
 
         return data;
+    }
+
+    public static Tuple<MapLocation, LocationType> parseBroadcastLocationType(int data) {
+        return new Tuple<>(new MapLocation((data / 16) % 64, data / 1024), LocationType.fromValue(data % 16));
     }
 
     public static int[] serializeHoldLocation(MapLocation loc, int robot_id) {
