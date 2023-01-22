@@ -41,23 +41,6 @@ public class Launcher extends Robot {
     // value, there will be no random movement from launchers
     public static final int NEARBY_LAUNCHER_THRESHOLD = 0;
 
-    // Launchers are more willing to push forward:
-    // - When the round number is large, and
-    // - When there are many nearby launchers.
-    // The following constants regulate this behaviour.
-
-    // First round number at which launchers want to push past the center
-    public static final int MIN_PUSH_ROUND = 250;
-    // Round number at which launchers want to push to the maximum
-    public static final int MAX_PUSH_ROUND = 350;
-
-    // Smallest proportion of nearby launchers at which launchers
-    // want to push past the center
-    public static final double MIN_LAUNCHER_PROPORTION = 0.1;
-    // Proportion of nearby launchers at which launchers want to push
-    // to the maximum
-    public static final double MAX_LAUNCHER_PROPORTION = 0.2;
-
     public Launcher(RobotController rc) throws GameActionException {
         super(rc);
 
@@ -260,32 +243,35 @@ public class Launcher extends Robot {
             }
         } 
         
-        if ((curMovementTarget == null) && (leaderPriority != MAX_LEADER_PRIORITY - 1)) {
-            // Slowly move toward opposite corner of HQ location
-            // 1/10 of launchers won't be affected by this
-            int effectiveRoundNum = rc.getRoundNum();
-            effectiveRoundNum = Math.max(effectiveRoundNum, MIN_PUSH_ROUND);
-            effectiveRoundNum = Math.min(effectiveRoundNum, MAX_PUSH_ROUND);
-            double roundNumFactor = (effectiveRoundNum - MIN_PUSH_ROUND) * 1.0f /
-                    (MAX_PUSH_ROUND - MIN_PUSH_ROUND);
-
-            int friendlyLauncherCount = 0;
+        if ((rng.nextInt(2) == 0) && (curMovementTarget == null) && (leaderPriority != MAX_LEADER_PRIORITY - 1)) {
+            // Main macro
+            int launcherDiff = 0;
             for (RobotInfo robot : friendlyRobots) {
-                if (robot.getType() == RobotType.LAUNCHER) {
-                    friendlyLauncherCount++;
+                if ((robot.getType() == RobotType.LAUNCHER) ||
+                    (robot.getType() == RobotType.DESTABILIZER)) {
+                    launcherDiff++;
                 }
             }
-            double launcherCountFactor = friendlyRobots.length == 0 ? MIN_LAUNCHER_PROPORTION
-                    : friendlyLauncherCount * 1.0f / friendlyRobots.length;
-            launcherCountFactor = Math.max(Math.min(launcherCountFactor, MAX_LAUNCHER_PROPORTION),
-                    MIN_LAUNCHER_PROPORTION);
-            launcherCountFactor = (launcherCountFactor - MIN_LAUNCHER_PROPORTION) /
-                    (MAX_LAUNCHER_PROPORTION - MIN_LAUNCHER_PROPORTION);
+            for (RobotInfo robot : enemyRobots) {
+                if ((robot.getType() == RobotType.LAUNCHER) ||
+                    (robot.getType() == RobotType.DESTABILIZER)) {
+                    launcherDiff--;
+                }
+            }
+
+            double launcherCountFactor;
+            if (launcherDiff > 0) {
+                launcherCountFactor = 1.0f;
+            } else if (launcherDiff < 0) {
+                launcherCountFactor = 0.0f;
+            } else {
+                launcherCountFactor = 0.5f;
+            }
 
             double healthFactor = rc.getHealth() / 200.0f; // Launcher max health
 
             // Between -0.4 and 1
-            double overallFactor = (roundNumFactor + launcherCountFactor + 2 * healthFactor) * 1.4f / 4 - 0.4f;
+            double overallFactor = (3 * launcherCountFactor + healthFactor) * 1.4f / 4 - 0.4f;
 
             assert overallFactor >= -0.4f && overallFactor <= 1;
 

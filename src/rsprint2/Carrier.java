@@ -299,7 +299,7 @@ public class Carrier extends Robot {
 
         // Collect resources if possible
         if (hqOrder != HQCarrierOrder.CARRY_ANCHOR) {
-            if (rc.canCollectResource(targetLocation, GameConstants.WELL_STANDARD_RATE)) {
+            while (rc.canCollectResource(targetLocation, GameConstants.WELL_STANDARD_RATE)) {
                 // Set this well as the target
                 hqTargetLocation = targetLocation;
                 rc.collectResource(targetLocation, GameConstants.WELL_STANDARD_RATE);

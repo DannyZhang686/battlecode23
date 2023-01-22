@@ -127,8 +127,7 @@ public class Headquarters extends Robot {
                     // irc_writer.writeBufferEvent(IrcEvent.HOLD_LOCATION, data[0], data[1]);
                 }
             }
-        } else if (curRound < 500) {
-            // Try to spawn launchers, then carriers
+        } else if (curRound < 1000) {
             if (rc.getResourceAmount(ResourceType.MANA) >= Constants.LAUNCHER_COST_MN) {
                 tryToSpawnLauncher();
             }
@@ -144,7 +143,17 @@ public class Headquarters extends Robot {
             }
             // If you hate magic numbers, now is the time to shield your eyes
             if (rc.getResourceAmount(ResourceType.MANA) >= 150) {
-                tryToSpawnLauncher();
+                if (enemyRobots.length > friendlyRobots.length) {
+                    // Attempt a breakout
+                    if (rc.getResourceAmount(ResourceType.MANA) >= 300) {
+                        for (int i = 0; i < 5; i++) {
+                            tryToSpawnLauncher();
+                        }
+                    }
+                } else {
+                    // Spawn normally
+                    tryToSpawnLauncher();
+                }
             }
             if (rc.getResourceAmount(ResourceType.ADAMANTIUM) >= 150
                     && nearbyCarrierCount < allowedCarriersInRange) {
