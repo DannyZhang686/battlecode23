@@ -353,7 +353,7 @@ public class Carrier extends Robot {
                 // try surrounding 8 squares to dump, should be space
                 for (Direction d : Constants.ALL_DIRECTIONS) {
                     MapLocation mp = rc_loc.add(d);
-                    if (!rc.isLocationOccupied(mp) && rc.canAttack(mp)) {
+                    if (rc.canSenseLocation(mp) && !rc.isLocationOccupied(mp) && rc.canAttack(mp)) {
                         rc.attack(mp);
                         break;
                     }

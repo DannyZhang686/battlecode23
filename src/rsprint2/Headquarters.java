@@ -43,13 +43,13 @@ public class Headquarters extends Robot {
         nearbyWells = rc.senseNearbyWells();
         int numAdamantiumWells = 0, numManaWells = 0;
 
-        allowedCarriersInRange = 8;
+        allowedCarriersInRange = 10;
         // Compute allowedCarriersInRange as well as the number of
         // adamantium and mana wells in range
         for (WellInfo well : nearbyWells) {
             int dis = well.getMapLocation().distanceSquaredTo(rc.getLocation());
             if (dis >= 16) {
-                allowedCarriersInRange += 4;
+                allowedCarriersInRange += 5;
             } else if (dis >= 9) {
                 allowedCarriersInRange += 2;
             }
@@ -146,9 +146,7 @@ public class Headquarters extends Robot {
             if (rc.getResourceAmount(ResourceType.MANA) >= 150) {
                 tryToSpawnLauncher();
             }
-            // Harsher restriction because adamantium should never be the
-            // limiting factor to anchor spawning
-            if (rc.getResourceAmount(ResourceType.ADAMANTIUM) >= 200
+            if (rc.getResourceAmount(ResourceType.ADAMANTIUM) >= 150
                     && nearbyCarrierCount < allowedCarriersInRange) {
                 tryToSpawnCarrier();
             }

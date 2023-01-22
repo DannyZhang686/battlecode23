@@ -1,7 +1,6 @@
 package rsprint2;
 
 import battlecode.common.*;
-import rsprint2.data.*;
 
 public class Launcher extends Robot {
 
@@ -14,6 +13,11 @@ public class Launcher extends Robot {
     // For the clumping functionality
     int leaderPriority;
     int followingLauncherID;
+
+    // Horizontal, vertical, rotational
+    boolean[] possibleSymmetries = new boolean[3];
+    // Known enemy HQ locations assuming each of these symmetries
+    MapLocation[] hqSymmetries = new MapLocation[3];
 
     // For random movement to go in the same direction for multiple turns
     Direction randomDirection = Direction.CENTER;
@@ -49,10 +53,10 @@ public class Launcher extends Robot {
 
     // Smallest proportion of nearby launchers at which launchers
     // want to push past the center
-    public static final double MIN_LAUNCHER_PROPORTION = 0.2;
+    public static final double MIN_LAUNCHER_PROPORTION = 0.1;
     // Proportion of nearby launchers at which launchers want to push
     // to the maximum
-    public static final double MAX_LAUNCHER_PROPORTION = 0.4;
+    public static final double MAX_LAUNCHER_PROPORTION = 0.2;
 
     public Launcher(RobotController rc) throws GameActionException {
         super(rc);
@@ -61,6 +65,7 @@ public class Launcher extends Robot {
         hqSpotted = false;
         followingLauncherID = -1;
         leaderPriority = getLeaderPriority(rc.getID());
+        possibleSymmetries[0] = possibleSymmetries[1] = possibleSymmetries[2] = true;
 
         // hqLocation initialization
         RobotInfo[] nearbyFriendlyRobots = rc.senseNearbyRobots(-1, friendlyTeam);
@@ -74,6 +79,14 @@ public class Launcher extends Robot {
             }
         }
         hqLocation = possibleHQLocations[rng.nextInt(nearbyHQs)];
+
+        // Horizontal
+        hqSymmetries[0] = new MapLocation(rc.getMapWidth() - hqLocation.x - 1, hqLocation.y);
+        // Vertical
+        hqSymmetries[1] = new MapLocation(hqLocation.x, rc.getMapHeight() - hqLocation.y - 1);
+        // Rotational
+        hqSymmetries[2] = new MapLocation(rc.getMapWidth() - hqLocation.x - 1,
+                                          rc.getMapHeight() - hqLocation.y - 1);
     }
 
     public void recalibrate() throws GameActionException {
@@ -83,13 +96,24 @@ public class Launcher extends Robot {
             hqSpotted = true;
             curMovementTarget = nearbyEnemyHQLocations[0];
         }
+
+        // possibleSymmetries update
+        for (int i = 0; i < 3; i++) {
+            if (rc.canSenseLocation(hqSymmetries[i])) {
+                RobotInfo theRobot = rc.senseRobotAtLocation(hqSymmetries[i]);
+                if ((theRobot == null) ||
+                    (theRobot.getTeam() != enemyTeam) ||
+                    (theRobot.getType() != RobotType.HEADQUARTERS)) {
+                    possibleSymmetries[i] = false;
+                }
+            }
+        }
     }
 
     @Override
     public void run() throws GameActionException {
         runSetup();
         recalibrate();
-        rc.setIndicatorString(String.valueOf(leaderPriority));
 
         if ((enemyRobots.length == nearbyEnemyHQCount) && (rc.isMovementReady())) {
             // No enemies in vision
@@ -185,8 +209,8 @@ public class Launcher extends Robot {
             // curTarget (so it's more likely that other launchers are also
             // in range to shoot at our chosen target)
             else if ((shootableEnemyRobots[i].health == curTarget.health) &&
-                    (rc_loc.distanceSquaredTo(shootableEnemyRobots[i].location) < rc_loc
-                            .distanceSquaredTo(curTarget.location))) {
+                    (rc_loc.distanceSquaredTo(shootableEnemyRobots[i].location) <
+                     rc_loc.distanceSquaredTo(curTarget.location))) {
                 curTarget = shootableEnemyRobots[i];
             }
         }
@@ -199,37 +223,39 @@ public class Launcher extends Robot {
     private void macroMove() throws GameActionException {
         if (hqSpotted) {
             // curMovementTarget already set correctly
-        } else if ((leaderPriority != 0) && (leaderPriority != MAX_LEADER_PRIORITY - 1)) {
-            MapLocation[] leaderLocations = new MapLocation[friendlyRobots.length];
-            int numLeaders = 0;
-            boolean foundOldLauncher = false;
+        } else {
             curMovementTarget = null;
+            if ((leaderPriority != 0) && (leaderPriority != MAX_LEADER_PRIORITY - 1)) {
+                MapLocation[] leaderLocations = new MapLocation[friendlyRobots.length];
+                int numLeaders = 0;
+                boolean foundOldLauncher = false;
 
-            for (int curPriority = 0; curPriority < Math.min(leaderPriority, MAX_LEADER_PRIORITY); ++curPriority) {
-                for (RobotInfo robot : friendlyRobots) {
-                    if ((robot.type == RobotType.LAUNCHER) &&
-                            (curPriority == getLeaderPriority(robot.ID))) {
-                        // This robot is a leader (and a launcher)!
-                        if (robot.getID() == followingLauncherID) {
-                            // Old launcher is still in range; follow this one
-                            // over other launchers
-                            foundOldLauncher = true;
-                            curMovementTarget = robot.getLocation();
-                            break;
+                for (int curPriority = 0; curPriority < Math.min(leaderPriority, MAX_LEADER_PRIORITY); ++curPriority) {
+                    for (RobotInfo robot : friendlyRobots) {
+                        if ((robot.type == RobotType.LAUNCHER) &&
+                                (curPriority == getLeaderPriority(robot.ID))) {
+                            // This robot is a leader (and a launcher)!
+                            if (robot.getID() == followingLauncherID) {
+                                // Old launcher is still in range; follow this one
+                                // over other launchers
+                                foundOldLauncher = true;
+                                curMovementTarget = robot.getLocation();
+                                break;
+                            }
+                            leaderLocations[numLeaders] = robot.getLocation();
+                            numLeaders++;
                         }
-                        leaderLocations[numLeaders] = robot.getLocation();
-                        numLeaders++;
                     }
-                }
-                if ((!foundOldLauncher) && (numLeaders != 0)) {
-                    // Pick a random new leader to follow
-                    curMovementTarget = leaderLocations[rng.nextInt(numLeaders)];
-                    // Note: we re-find the ID to make the leaderLocations array smaller
-                    followingLauncherID = rc.senseRobotAtLocation(curMovementTarget).ID;
-                    break;
-                } else if (foundOldLauncher) {
-                    // Pretty big bytecode save
-                    break;
+                    if ((!foundOldLauncher) && (numLeaders != 0)) {
+                        // Pick a random new leader to follow
+                        curMovementTarget = leaderLocations[rng.nextInt(numLeaders)];
+                        // Note: we re-find the ID to make the leaderLocations array smaller
+                        followingLauncherID = rc.senseRobotAtLocation(curMovementTarget).ID;
+                        break;
+                    } else if (foundOldLauncher) {
+                        // Pretty big bytecode save
+                        break;
+                    }
                 }
             }
         } 
@@ -268,7 +294,22 @@ public class Launcher extends Robot {
             int targetY = (rc.getMapHeight() / 2)
                     + (int) (overallFactor * (rc.getMapHeight() / 2 - hqLocation.y));
 
-            curMovementTarget = new MapLocation(targetX, targetY);
+            if (possibleSymmetries[2]) {
+                // Diagonal by default
+                curMovementTarget = new MapLocation(targetX, targetY);
+            } else if (possibleSymmetries[0] && (rc.getID() % 8 < 4)) {
+                // Horizontal
+                curMovementTarget = new MapLocation(targetX, hqLocation.y);
+            } else if (possibleSymmetries[1]) {
+                // Vertical
+                curMovementTarget = new MapLocation(hqLocation.x, targetY);
+            } else if (possibleSymmetries[0]) {
+                // Horizontal
+                curMovementTarget = new MapLocation(targetX, hqLocation.y);
+            } else {
+                // Should be impossible; just assume diagonal
+                curMovementTarget = new MapLocation(targetX, targetY);
+            }
         }
 
         if (curMovementTarget == null) {
