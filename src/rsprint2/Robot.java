@@ -345,23 +345,6 @@ public abstract class Robot {
     }
 
     private boolean okMove(Direction dir) throws GameActionException {
-        if (!rc.canSenseLocation(rc_loc.add(dir))) {
-            // Moving off the map, maybe?
-            return false;
-        } else {
-            MapInfo curLocation = rc.senseMapInfo(rc_loc);
-            MapInfo theLocation = rc.senseMapInfo(rc_loc.add(dir));
-            if ((rng.nextInt(3) != 0) &&
-                (curLocation.getCurrentDirection() == Direction.CENTER) &&
-                (theLocation.getCurrentDirection() != Direction.CENTER)) {
-                return false;
-            }
-            if ((rng.nextInt(10) != 0) &&
-                (curLocation.hasCloud()) &&
-                theLocation.hasCloud()) {
-                return false;
-            }
-        }
         return rc.canMove(dir) && (!isSafeLocation(rc_loc) || isSafeLocation(rc_loc.add(dir)));
     }
 

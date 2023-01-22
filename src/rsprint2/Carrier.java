@@ -106,9 +106,6 @@ public class Carrier extends Robot {
 
         runSetup();
 
-        avoidThreats();
-
-        runSetup();
 
         if (hqOrder != HQCarrierOrder.CARRY_ANCHOR) {
             int amount_adam = this.rc.getResourceAmount(ResourceType.ADAMANTIUM);
@@ -181,6 +178,10 @@ public class Carrier extends Robot {
                 }
             }
         }
+
+        avoidThreats();
+
+        runSetup();
 
         WellInfo closest_well = null;
         if (hqOrder == HQCarrierOrder.GATHER_ANY_RESOURCE) {
