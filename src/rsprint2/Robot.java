@@ -362,7 +362,17 @@ public abstract class Robot {
                 return false;
             }
         }
-        return rc.canMove(dir) && (!isSafeLocation(rc_loc) || isSafeLocation(rc_loc.add(dir)));
+        return rc.canMove(dir) && (!isSafeLocation(rc_loc) || (isSafeLocation(rc_loc.add(dir)) || justMove()));
+    }
+
+    // Just move to avoid traffic
+    private boolean justMove() throws GameActionException {
+        for (Direction d : Constants.ALL_DIRECTIONS) {
+            if (rc.canMove(d) && isSafeLocation(rc_loc.add(d))) {
+                return false;
+            }
+        }
+        return rng.nextInt(400) == 0;
     }
 
     public Direction[] getMoveableDirections() {
