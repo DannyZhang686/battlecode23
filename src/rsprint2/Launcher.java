@@ -9,6 +9,8 @@ public class Launcher extends Robot {
 
     // Location of HQ closest to the spawn of this launcher
     final MapLocation hqLocation;
+    // Round on which this launcher spawned
+    final int spawnedRound;
 
     // For the clumping functionality
     int leaderPriority;
@@ -46,6 +48,7 @@ public class Launcher extends Robot {
 
         curMovementTarget = null;
         hqSpotted = false;
+        spawnedRound = rc.getRoundNum();
         followingLauncherID = -1;
         leaderPriority = getLeaderPriority(rc.getID());
         possibleSymmetries[0] = possibleSymmetries[1] = possibleSymmetries[2] = true;
@@ -204,6 +207,12 @@ public class Launcher extends Robot {
     }
 
     private void macroMove() throws GameActionException {
+        if ((rc.senseIsland(rc_loc) != -1) &&
+            (rc.senseTeamOccupyingIsland(rc.senseIsland(rc_loc)) == friendlyTeam) &&
+            (rng.nextInt(500) != 0)) {
+            // Park on friendly islands
+            return;
+        }
         if (hqSpotted) {
             // curMovementTarget already set correctly
         } else {
@@ -243,7 +252,9 @@ public class Launcher extends Robot {
             }
         } 
         
-        if ((rng.nextInt(2) == 0) && (curMovementTarget == null) && (leaderPriority != MAX_LEADER_PRIORITY - 1)) {
+        if (((rng.nextInt(3) != 0) || (leaderPriority < 3) || (spawnedRound < 15)) &&
+            (curMovementTarget == null) &&
+            (leaderPriority != MAX_LEADER_PRIORITY - 1)) {
             // Main macro
             int launcherDiff = 0;
             for (RobotInfo robot : friendlyRobots) {

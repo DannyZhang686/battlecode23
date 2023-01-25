@@ -138,7 +138,6 @@ public class Carrier extends Robot {
                 while (moveTowardsTarget(hqLocation)) {
                 }
                 // System.out.println("want to go home but stuck :(");
-                return;
             }
 
             // Maybe we can pick up an anchor?

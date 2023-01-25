@@ -38,20 +38,20 @@ public class Headquarters extends Robot {
         irc_writer = new IrcWriter(rc_loc, rc, HQ_ID);
 
         friendlyTeam = rc.getTeam();
-        enemyTeam = this.friendlyTeam == Team.A ? Team.B : Team.A;
+        enemyTeam = friendlyTeam.opponent();
 
         nearbyWells = rc.senseNearbyWells();
         int numAdamantiumWells = 0, numManaWells = 0;
 
-        allowedCarriersInRange = 10;
+        allowedCarriersInRange = 12;
         // Compute allowedCarriersInRange as well as the number of
         // adamantium and mana wells in range
         for (WellInfo well : nearbyWells) {
             int dis = well.getMapLocation().distanceSquaredTo(rc.getLocation());
             if (dis >= 16) {
-                allowedCarriersInRange += 5;
+                allowedCarriersInRange += 6;
             } else if (dis >= 9) {
-                allowedCarriersInRange += 2;
+                allowedCarriersInRange += 3;
             }
             if (well.getResourceType() == ResourceType.ADAMANTIUM) {
                 numAdamantiumWells++;
@@ -102,32 +102,27 @@ public class Headquarters extends Robot {
         int curRound = rc.getRoundNum();
         int adamantium = rc.getResourceAmount(ResourceType.ADAMANTIUM);
         int mana = rc.getResourceAmount(ResourceType.MANA);
-        if (curRound < 10) {
+        if (curRound == 1) {
+            if (mana >= Constants.LAUNCHER_COST_MN) {
+                tryToSpawnLauncher();
+                mana = rc.getResourceAmount(ResourceType.MANA);
+            }
+            while (adamantium >= Constants.CARRIER_COST_AD) {
+                tryToSpawnCarrier();
+                adamantium = rc.getResourceAmount(ResourceType.ADAMANTIUM);
+            }
+        }
+        else if (curRound < 10) {
             // In the opening, try to spawn carriers first
             while (adamantium >= Constants.CARRIER_COST_AD) {
                 tryToSpawnCarrier();
                 adamantium = rc.getResourceAmount(ResourceType.ADAMANTIUM);
             }
             while (mana >= Constants.LAUNCHER_COST_MN) {
-                int launcher_id = tryToSpawnLauncher();
+                tryToSpawnLauncher();
                 mana = rc.getResourceAmount(ResourceType.MANA);
-                
-                if (launcher_id != 0 && spawnedLaunchers <= 3) {
-                    Direction hq_dir = MAP_CENTER.directionTo(rc_loc);
-                    MapLocation spawn_location = MAP_CENTER.add(hq_dir).add(hq_dir);
-
-                    if (spawnedLaunchers == 2) {
-                        spawn_location = spawn_location.add(hq_dir.rotateLeft());
-                    } else if (spawnedLaunchers == 3) {
-                        spawn_location = spawn_location.add(hq_dir.rotateRight());
-                    }
-
-                    // int data[] = IrcEvent.serializeHoldLocation(spawn_location, launcher_id);
-
-                    // irc_writer.writeBufferEvent(IrcEvent.HOLD_LOCATION, data[0], data[1]);
-                }
             }
-        } else if (curRound < 1000) {
+        } else if (curRound < 750) {
             if (rc.getResourceAmount(ResourceType.MANA) >= Constants.LAUNCHER_COST_MN) {
                 tryToSpawnLauncher();
             }
@@ -142,16 +137,9 @@ public class Headquarters extends Robot {
                 tryToSpawnAnchor();
             }
             // If you hate magic numbers, now is the time to shield your eyes
-            if (rc.getResourceAmount(ResourceType.MANA) >= 150) {
-                if (enemyRobots.length > friendlyRobots.length) {
-                    // Attempt a breakout
-                    if (rc.getResourceAmount(ResourceType.MANA) >= 300) {
-                        for (int i = 0; i < 5; i++) {
-                            tryToSpawnLauncher();
-                        }
-                    }
-                } else {
-                    // Spawn normally
+            if (rc.getResourceAmount(ResourceType.MANA) >= 130) {
+                if (enemyRobots.length < 30) {
+                    // This HQ is probably not surrounded :)
                     tryToSpawnLauncher();
                 }
             }
