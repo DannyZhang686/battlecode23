@@ -112,9 +112,9 @@ public class Launcher extends Robot {
             shoot();
             recalibrate();
             // Later code tries to retreat out of range
-        } else if ((enemyRobots.length - nearbyEnemyHQCount < 3) &&
-                   (friendlyRobots.length < 3) &&
-                   (rc.isActionReady())) {
+        } else if ((((enemyRobots.length - nearbyEnemyHQCount < 3) && (friendlyRobots.length < 3)) ||
+                    (rng.nextInt(4) == 0)) &&
+                    (rc.isActionReady())) {
             // If enemies in vision range in a "small" fight, step and shoot (if possible)
             if (rc.isMovementReady()) {
                 microMove(true);
@@ -134,6 +134,31 @@ public class Launcher extends Robot {
             // Back away
             microMove(false);
             recalibrate();
+        }
+
+        if (rc.isActionReady()) {
+            if (shootableEnemyRobots.length > shootableEnemyHQCount) {
+                // If enemies in shooting range (after some movement), shoot
+                shoot();
+                recalibrate();
+            } else {
+                // Shoot at a random cloud
+                MapLocation[] clouds = rc.senseNearbyCloudLocations(16);
+                MapLocation[] shotTargets = new MapLocation[clouds.length];
+                int numShotTargets = 0;
+
+                for (MapLocation cloud : clouds) {
+                    if (rc_loc.distanceSquaredTo(cloud) > 4) {
+                        // Can't see, so there might be an enemy robot there
+                        shotTargets[numShotTargets] = cloud;
+                        numShotTargets++;
+                    }
+                }
+                if (numShotTargets != 0) {
+                    rc.attack(shotTargets[rng.nextInt(numShotTargets)]);
+                }
+                recalibrate();
+            }
         }
     }
 
