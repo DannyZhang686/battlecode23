@@ -29,8 +29,7 @@ public abstract class Robot {
     RobotInfo[] friendlyRobots, enemyRobots; // note: enemy HQ is a robot too
     MapLocation[] nearbyEnemyHQLocations = new MapLocation[4];
     int nearbyEnemyHQCount, shootableEnemyHQCount;
-    
-    
+
     public Robot(RobotController rc) throws GameActionException {
         this.rc = rc;
         rng = new Random(31415926 ^ 271828 ^ rc.getID());
@@ -57,13 +56,19 @@ public abstract class Robot {
 
     public abstract void run() throws GameActionException;
 
-    public void super_recalibrate() throws GameActionException {
+    protected void runSetup() throws GameActionException {
+        super_recalibrate();
+    }
+
+    protected void super_recalibrate() throws GameActionException {
         rc_loc = rc.getLocation();
+
         enemyRobots = rc.senseNearbyRobots(-1, enemyTeam);
         shootableEnemyRobots = rc.senseNearbyRobots(16, enemyTeam);
         friendlyRobots = rc.senseNearbyRobots(-1, friendlyTeam);
 
         nearbyEnemyHQCount = shootableEnemyHQCount = 0;
+
         for (RobotInfo robot : enemyRobots) {
             if (robot.type == RobotType.HEADQUARTERS) {
                 nearbyEnemyHQLocations[nearbyEnemyHQCount++] = robot.getLocation();
@@ -73,150 +78,6 @@ public abstract class Robot {
             }
         }
     }
-
-    protected void runSetup() throws GameActionException {
-        rc_loc = rc.getLocation();
-        super_recalibrate();
-    }
-
-    protected void setCurrentTarget(MapLocation ct) {
-        current_target = ct;
-    }
-
-    protected boolean moveTowardsTarget(MapLocation targetLocation) throws GameActionException {
-        if (rc.isMovementReady()) {
-            rc_loc = rc.getLocation();
-            if (targetLocation != current_target) {
-                turnCount = 0;
-                lockedDirection = Direction.CENTER;
-            }
-            setCurrentTarget(targetLocation);
-
-            Direction dir = pathTowardsTarget();
-            if ((dir == null) || (dir == Direction.CENTER)) {
-                return false;
-            }
-
-            return tryToMoveInDirection(dir);
-        }
-
-        return false;
-    }
-
-
-    // move towards a direction without a destination
-    protected boolean moveTowardsDirection(Direction target_dir) throws GameActionException {
-        if (rc.isMovementReady()) {
-            Direction dir = pathTowardsDirection(target_dir);
-            if ((dir == null) || (dir == Direction.CENTER)) {
-                return false;
-            }
-
-            return tryToMoveInDirection(dir);
-        }
-
-        return false;
-    }
-
-    private Direction pathTowardsTarget() throws GameActionException {
-        assert rc.getType() != RobotType.HEADQUARTERS;
-        assert current_target != null;
-        assert rc_loc != null;
-
-        Direction dir = rc_loc.directionTo(current_target);
-        if (dir == Direction.CENTER) {
-            return null;
-        }
-
-        if ((turnCount >= MAX_FRUSTRATED_TURNS) && (lockedDirection == Direction.CENTER)) {
-            turnCount = MAX_FRUSTRATED_TURNS;
-            lockedDirection = rc.getID() % 2 == 0 ? dir.rotateLeft().rotateLeft() : dir.rotateRight().rotateRight();
-        } else if ((turnCount > 0) && (lockedDirection != Direction.CENTER)) {
-            turnCount--;
-            return lockedDirection;
-        } else if ((turnCount <= 0) && (lockedDirection != Direction.CENTER)) {
-            turnCount = 0;
-            lockedDirection = Direction.CENTER;
-        }
-
-        if ((turnCount >= MAX_FRUSTRATED_TURNS) && (lockedDirection == Direction.CENTER)) {
-            turnCount = MAX_FRUSTRATED_TURNS;
-            lockedDirection = rc.getID() % 2 == 0 ? dir.rotateLeft().rotateLeft() : dir.rotateRight().rotateRight();
-        } else if ((turnCount > 0) && (lockedDirection != Direction.CENTER)) {
-            turnCount--;
-            return lockedDirection;
-        } else if ((turnCount <= 0) && (lockedDirection != Direction.CENTER)) {
-            turnCount = 0;
-            lockedDirection = Direction.CENTER;
-        }
-
-        return pathTowardsDirection(dir);
-    }
-
-    private Direction pathTowardsDirection(Direction dir) throws GameActionException {
-        int dir_raylen = 0;
-        MapLocation curloc = rc_loc.add(dir);
-        boolean dir_valid = true;
-
-        if(!rc.canSenseLocation(curloc)) return null;
-
-        while (rc.canSenseLocation(curloc)) {
-            if (rc.sensePassability(curloc) && (dir_raylen != 0 || !rc.canSenseRobotAtLocation(curloc))) {
-                dir_raylen++;
-                curloc = curloc.add(dir);
-            } else {
-                dir_valid = false;
-                break;
-            }
-        }
-
-        if (dir_valid) {
-            turnCount = 0;
-            return dir;
-        }
-
-        Direction dirp = RobotMath.getPreviousDirection(dir);
-        Direction dirn = RobotMath.getNextDirection(dir);
-        int dirp_raylen = 0;
-        int dirn_raylen = 0;
-
-        curloc = rc_loc.add(dirp);
-        while (rc.canSenseLocation(curloc) && rc.sensePassability(curloc) && !rc.canSenseRobotAtLocation(curloc)) {
-            dirp_raylen++;
-            curloc = curloc.add(dirp);
-        }
-
-        curloc = rc_loc.add(dirn);
-        while (rc.canSenseLocation(curloc) && rc.sensePassability(curloc) && !rc.canSenseRobotAtLocation(curloc)) {
-            dirn_raylen++;
-            curloc = curloc.add(dirn);
-        }
-
-        if (dir_raylen == 0 && dirn_raylen == 0 && dirp_raylen == 0) {
-            turnCount++;
-            return rc.getID() % 2 == 0 ? dirp.rotateLeft() : dirn.rotateRight();
-        }
-
-        if (dir_raylen > Math.min(dirn_raylen, dirp_raylen)) {
-            turnCount = 0;
-            return dir;
-        }
-
-        if (dir_raylen == Math.min(dirn_raylen, dirp_raylen)) {
-            if (dirn_raylen == dirp_raylen) {
-                turnCount = 0;
-                return dir;
-            }
-        }
-
-        // Guaranteed to return a suboptimal direction
-        turnCount++;
-        if (dirn_raylen < dirp_raylen) {
-            return dirp;
-        }
-        return dirn;
-    }
-
 
     protected WellInfo findClosestWell() {
         WellInfo[] wells = rc.senseNearbyWells();
@@ -251,6 +112,23 @@ public abstract class Robot {
         }
 
         return closestWell;
+    }
+
+    protected Direction[] getMoveableDirections() {
+        int n = 0;
+        Direction[] moveableDirections = new Direction[8];
+
+        for (Direction dir : Constants.ALL_DIRECTIONS) {
+            if (rc.canMove(dir)) {
+                moveableDirections[n++] = dir;
+            }
+        }
+        // resize it
+        Direction[] ret = new Direction[n];
+        while (n-- > 0)
+            ret[n] = moveableDirections[n];
+
+        return ret;
     }
 
     // Returns the optimal direction to move in; does *not* do any actual moving and
@@ -292,8 +170,161 @@ public abstract class Robot {
         return null;
     }
 
-    protected boolean tryToMoveInDirection(Direction dir) throws GameActionException {
-        rc_loc = rc.getLocation();
+    protected void setCurrentTarget(MapLocation ct) {
+        current_target = ct;
+    }
+
+    protected boolean moveTowardsTarget(MapLocation targetLocation) throws GameActionException {
+        if (rc.isMovementReady()) {
+            if (targetLocation != current_target) {
+                turnCount = 0;
+                lockedDirection = Direction.CENTER;
+            }
+
+            setCurrentTarget(targetLocation);
+
+            Direction dir = pathTowardsTarget();
+
+            if ((dir == null) || (dir == Direction.CENTER)) {
+                return false;
+            }
+
+            boolean moved = tryToMoveInDirection(dir);
+
+            if (moved) {
+                super_recalibrate();
+            }
+
+            return moved;
+        }
+
+        return false;
+    }
+
+    // move towards a direction without a destination
+    protected boolean moveTowardsDirection(Direction target_dir) throws GameActionException {
+        if (rc.isMovementReady()) {
+            Direction dir = pathTowardsDirection(target_dir);
+
+            if ((dir == null) || (dir == Direction.CENTER)) {
+                return false;
+            }
+
+            boolean moved = tryToMoveInDirection(dir);
+
+            if (moved) {
+                super_recalibrate();
+            }
+
+            return moved;
+        }
+
+        return false;
+    }
+
+    private Direction pathTowardsTarget() throws GameActionException {
+        assert rc.getType() != RobotType.HEADQUARTERS;
+        assert current_target != null;
+        assert rc_loc != null;
+
+        Direction dir = rc_loc.directionTo(current_target);
+
+        if (dir == Direction.CENTER) {
+            return null;
+        }
+
+        if ((turnCount >= MAX_FRUSTRATED_TURNS) && (lockedDirection == Direction.CENTER)) {
+            turnCount = MAX_FRUSTRATED_TURNS;
+            lockedDirection = rc.getID() % 2 == 0 ? dir.rotateLeft().rotateLeft() : dir.rotateRight().rotateRight();
+        } else if ((turnCount > 0) && (lockedDirection != Direction.CENTER)) {
+            turnCount--;
+            return lockedDirection;
+        } else if ((turnCount <= 0) && (lockedDirection != Direction.CENTER)) {
+            turnCount = 0;
+            lockedDirection = Direction.CENTER;
+        }
+
+        if ((turnCount >= MAX_FRUSTRATED_TURNS) && (lockedDirection == Direction.CENTER)) {
+            turnCount = MAX_FRUSTRATED_TURNS;
+            lockedDirection = rc.getID() % 2 == 0 ? dir.rotateLeft().rotateLeft() : dir.rotateRight().rotateRight();
+        } else if ((turnCount > 0) && (lockedDirection != Direction.CENTER)) {
+            turnCount--;
+            return lockedDirection;
+        } else if ((turnCount <= 0) && (lockedDirection != Direction.CENTER)) {
+            turnCount = 0;
+            lockedDirection = Direction.CENTER;
+        }
+
+        return pathTowardsDirection(dir);
+    }
+
+    private Direction pathTowardsDirection(Direction dir) throws GameActionException {
+        int dir_raylen = 0;
+        MapLocation curloc = rc_loc.add(dir);
+        boolean dir_valid = true;
+
+        if (!rc.canSenseLocation(curloc))
+            return null;
+
+        while (rc.canSenseLocation(curloc)) {
+            if (rc.sensePassability(curloc) && (dir_raylen != 0 || !rc.canSenseRobotAtLocation(curloc))) {
+                dir_raylen++;
+                curloc = curloc.add(dir);
+            } else {
+                dir_valid = false;
+                break;
+            }
+        }
+
+        if (dir_valid) {
+            turnCount = 0;
+            return dir;
+        }
+
+        Direction dirp = RobotMath.getPreviousDirection(dir);
+        Direction dirn = RobotMath.getNextDirection(dir);
+
+        int dirp_raylen = 0;
+        int dirn_raylen = 0;
+
+        curloc = rc_loc.add(dirp);
+        while (rc.canSenseLocation(curloc) && rc.sensePassability(curloc) && !rc.canSenseRobotAtLocation(curloc)) {
+            dirp_raylen++;
+            curloc = curloc.add(dirp);
+        }
+
+        curloc = rc_loc.add(dirn);
+        while (rc.canSenseLocation(curloc) && rc.sensePassability(curloc) && !rc.canSenseRobotAtLocation(curloc)) {
+            dirn_raylen++;
+            curloc = curloc.add(dirn);
+        }
+
+        if (dir_raylen == 0 && dirn_raylen == 0 && dirp_raylen == 0) {
+            turnCount++;
+            return rc.getID() % 2 == 0 ? dirp.rotateLeft() : dirn.rotateRight();
+        }
+
+        if (dir_raylen > Math.min(dirn_raylen, dirp_raylen)) {
+            turnCount = 0;
+            return dir;
+        }
+
+        if (dir_raylen == Math.min(dirn_raylen, dirp_raylen)) {
+            if (dirn_raylen == dirp_raylen) {
+                turnCount = 0;
+                return dir;
+            }
+        }
+
+        // Guaranteed to return a suboptimal direction
+        turnCount++;
+        if (dirn_raylen < dirp_raylen) {
+            return dirp;
+        }
+        return dirn;
+    }
+
+    private boolean tryToMoveInDirection(Direction dir) throws GameActionException {
         if (okMove(dir)) {
             // Great :)
             rc.move(dir);
@@ -375,17 +406,20 @@ public abstract class Robot {
         } else {
             MapInfo curLocation = rc.senseMapInfo(rc_loc);
             MapInfo theLocation = rc.senseMapInfo(rc_loc.add(dir));
+
             if ((rng.nextInt(3) != 0) &&
-                (curLocation.getCurrentDirection() == Direction.CENTER) &&
-                (theLocation.getCurrentDirection() != Direction.CENTER)) {
+                    (curLocation.getCurrentDirection() == Direction.CENTER) &&
+                    (theLocation.getCurrentDirection() != Direction.CENTER)) {
                 return false;
             }
+
             if ((rng.nextInt(10) != 0) &&
-                (curLocation.hasCloud()) &&
-                theLocation.hasCloud()) {
+                    (curLocation.hasCloud()) &&
+                    theLocation.hasCloud()) {
                 return false;
             }
         }
+
         return rc.canMove(dir) && (!isSafeLocation(rc_loc) || (isSafeLocation(rc_loc.add(dir)) || justMove()));
     }
 
@@ -396,24 +430,8 @@ public abstract class Robot {
                 return false;
             }
         }
+
         return rng.nextInt(400) == 0;
-    }
-
-    public Direction[] getMoveableDirections() {
-        int n = 0;
-        Direction[] moveableDirections = new Direction[8];
-
-        for (Direction dir : Constants.ALL_DIRECTIONS) {
-            if (rc.canMove(dir)) {
-                moveableDirections[n++] = dir;
-            }
-        }
-        // resize it
-        Direction[] ret = new Direction[n];
-        while (n-- > 0)
-            ret[n] = moveableDirections[n];
-
-        return ret;
     }
 
     private boolean isSafeLocation(MapLocation location) {
@@ -422,6 +440,7 @@ public abstract class Robot {
                 return false;
             }
         }
+
         return true;
     }
 }
