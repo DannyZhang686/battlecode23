@@ -112,8 +112,10 @@ public class Launcher extends Robot {
             shoot();
             recalibrate();
             // Later code tries to retreat out of range
-        } else if ((enemyRobots.length > nearbyEnemyHQCount) && (rc.isActionReady())) {
-            // If enemies in vision range, step and shoot (if possible)
+        } else if ((enemyRobots.length - nearbyEnemyHQCount < 3) &&
+                   (friendlyRobots.length < 3) &&
+                   (rc.isActionReady())) {
+            // If enemies in vision range in a "small" fight, step and shoot (if possible)
             if (rc.isMovementReady()) {
                 microMove(true);
                 recalibrate();
@@ -307,6 +309,18 @@ public class Launcher extends Robot {
                 // Should be impossible; just assume diagonal
                 curMovementTarget = new MapLocation(targetX, targetY);
             }
+        }
+
+        if ((rng.nextInt(2) == 0) && (rc.getRoundNum() < 100)) {
+            // Stay grouped with other launchers
+            MapLocation totalDirection = new MapLocation(0, 0);
+            for (RobotInfo robot : friendlyRobots) {
+                if (robot.type == RobotType.LAUNCHER) {
+                    MapLocation relativeLocation = robot.getLocation().translate(-rc_loc.x, -rc_loc.y);
+                    totalDirection = totalDirection.translate(relativeLocation.x, relativeLocation.y);
+                }
+            }
+            curMovementTarget = rc_loc.add(new MapLocation(0, 0).directionTo(totalDirection));
         }
 
         if (curMovementTarget == null) {
