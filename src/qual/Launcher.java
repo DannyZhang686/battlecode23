@@ -345,7 +345,7 @@ public class Launcher extends Robot {
                     totalDirection = totalDirection.translate(relativeLocation.x, relativeLocation.y);
                 }
             }
-            curMovementTarget = rc_loc.add(new MapLocation(0, 0).directionTo(totalDirection));
+            curMovementTarget = rc_loc.translate(totalDirection.x, totalDirection.y);
         }
 
         if (curMovementTarget == null) {

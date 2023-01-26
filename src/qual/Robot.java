@@ -339,6 +339,30 @@ public abstract class Robot {
                     return true;
                 }
             }
+            Direction next3 = RobotMath.getNextDirection(next2);
+            Direction prev3 = RobotMath.getPreviousDirection(prev2);
+            if (rng.nextInt(2) == 0) {
+                if (okMove(next3)) {
+                    rc.move(next3);
+                    return true;
+                } else if (okMove(prev3)) {
+                    rc.move(prev3);
+                    return true;
+                }
+            } else {
+                // Opposite order
+                if (okMove(prev3)) {
+                    rc.move(prev3);
+                    return true;
+                } else if (okMove(next3)) {
+                    rc.move(next3);
+                    return true;
+                }
+            }
+            if ((rng.nextInt(2) == 0) && okMove(dir.opposite())) {
+                rc.move(dir.opposite()); // (:
+                return true;
+            }
         }
         // Couldn't move
         return false;
