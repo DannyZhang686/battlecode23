@@ -1,17 +1,10 @@
 package pqual;
 
 import battlecode.common.*;
-import pqual.data.HQMap;
-import pqual.irc.IrcEvent;
-import pqual.irc.IrcWriter;
 import pqual.utils.RobotMath;
 
 public class Headquarters extends Robot {
-    private final HQMap map;
-    private final IrcWriter irc_writer;
-
     // Final HQ fields
-    private final int HQ_ID;
     private final Team friendlyTeam, enemyTeam;
 
     // Initialize constants
@@ -28,14 +21,6 @@ public class Headquarters extends Robot {
 
     public Headquarters(RobotController rc) throws GameActionException {
         super(rc);
-
-        HQ_ID = irc_reader.addAndGetHQID();
-
-        // Initialize the map
-        map = new HQMap(rc_loc, rc);
-
-        // Initialize HQ Channel
-        irc_writer = new IrcWriter(rc_loc, rc, HQ_ID);
 
         friendlyTeam = rc.getTeam();
         enemyTeam = friendlyTeam.opponent();
@@ -83,8 +68,6 @@ public class Headquarters extends Robot {
     public void run() throws GameActionException {
         runSetup();
 
-        this.irc_writer.sync(this.map);
-
         if (rc.isActionReady())
             tryToSpawn();
     }
@@ -111,8 +94,7 @@ public class Headquarters extends Robot {
                 tryToSpawnCarrier();
                 adamantium = rc.getResourceAmount(ResourceType.ADAMANTIUM);
             }
-        }
-        else if (curRound < 10) {
+        } else if (curRound < 10) {
             // In the opening, try to spawn carriers first
             while (adamantium >= Constants.CARRIER_COST_AD) {
                 tryToSpawnCarrier();

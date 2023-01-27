@@ -2,14 +2,12 @@ package pqual;
 
 import battlecode.common.*;
 import java.util.Random;
-import pqual.irc.IrcReader;
 import pqual.utils.RobotMath;
 
 public abstract class Robot {
 
     protected final RobotController rc;
     protected MapLocation rc_loc;
-    protected final IrcReader irc_reader;
 
     protected final MapLocation MAP_CENTER;
 
@@ -34,7 +32,6 @@ public abstract class Robot {
         this.rc = rc;
         rng = new Random(31415926 ^ 271828 ^ rc.getID());
         rc_loc = rc.getLocation();
-        irc_reader = new IrcReader(rc);
 
         // MAP_CENTER initialization
         int center_x = rc.getMapWidth() / 2;
