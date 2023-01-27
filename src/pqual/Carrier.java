@@ -88,6 +88,21 @@ public class Carrier extends Robot {
         hqLocation = null;
     }
 
+    private void updateLocations() throws GameActionException {
+        int hqLocationDistance = hqLocation == null ? 1000 : RobotMath.getChessboardDistance(hqLocation, rc_loc);
+
+        for (RobotInfo info : this.rc.senseNearbyRobots()) {
+            if (info.getType() == RobotType.HEADQUARTERS) {
+                int dist = RobotMath.getChessboardDistance(info.getLocation(), rc_loc);
+
+                if (dist < hqLocationDistance) {
+                    hqLocationDistance = dist;
+                    hqLocation = info.getLocation();
+                }
+            }
+        }
+    }
+
     private void transferResourcesAndTakeAnchor() throws GameActionException {
         if (hqOrder != HQCarrierOrder.CARRY_ANCHOR && hqLocation != null) {
             int amount_adam = rc.getResourceAmount(ResourceType.ADAMANTIUM);
@@ -156,21 +171,6 @@ public class Carrier extends Robot {
                     fruitlessSearchTurns = 0;
                     curDestination = -1;
                     return;
-                }
-            }
-        }
-    }
-
-    private void updateLocations() throws GameActionException {
-        int hqLocationDistance = hqLocation == null ? 1000 : RobotMath.getChessboardDistance(hqLocation, rc_loc);
-
-        for (RobotInfo info : this.rc.senseNearbyRobots()) {
-            if (info.getType() == RobotType.HEADQUARTERS) {
-                int dist = RobotMath.getChessboardDistance(info.getLocation(), rc_loc);
-
-                if (dist < hqLocationDistance) {
-                    hqLocationDistance = dist;
-                    hqLocation = info.getLocation();
                 }
             }
         }
@@ -402,7 +402,6 @@ public class Carrier extends Robot {
 
         while (fleeTurnsRemaining > 0 && moveTowardsDirection(fleeDirection)) {
             fleeTurnsRemaining--;
-            super_recalibrate();
         }
     }
 
