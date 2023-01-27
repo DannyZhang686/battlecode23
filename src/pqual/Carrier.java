@@ -106,7 +106,6 @@ public class Carrier extends Robot {
 
         runSetup();
 
-
         if (hqOrder != HQCarrierOrder.CARRY_ANCHOR) {
             int amount_adam = this.rc.getResourceAmount(ResourceType.ADAMANTIUM);
             int amount_elix = this.rc.getResourceAmount(ResourceType.ELIXIR);
@@ -237,6 +236,7 @@ public class Carrier extends Robot {
                     exploreTurnsRemaining != 0) {
                 // Try to move in the same direction
                 rc.move(randomDirection);
+                super_recalibrate();
                 exploreTurnsRemaining--;
             } else {
                 randomDirection = Direction.CENTER;
@@ -247,6 +247,7 @@ public class Carrier extends Robot {
                     // Move in a random valid direction
                     Direction theDirection = moveableDirections[rng.nextInt(n)];
                     rc.move(theDirection);
+                    super_recalibrate();
                     randomDirection = theDirection;
                     exploreTurnsRemaining = MAX_EXPLORE_TURNS_REMAINING;
                 }
@@ -289,11 +290,41 @@ public class Carrier extends Robot {
                 return;
             } else {
                 touristStuckTurns = 0;
-                rc_loc = rc.getLocation();
                 if (!rc_loc.isAdjacentTo(targetLocation) && !moveTowardsTarget(targetLocation)) {
                     // System.out.println("half stuck sadge :(");
                     return;
                 }
+            }
+        }
+
+        if (hqOrder != HQCarrierOrder.CARRY_ANCHOR &&
+                rc_loc.isAdjacentTo(targetLocation)) {
+            Direction heur_dir = hqLocation.directionTo(targetLocation).rotateRight().rotateRight().rotateRight();
+
+            int total = rc.getResourceAmount(ResourceType.ADAMANTIUM) + rc.getResourceAmount(ResourceType.MANA)
+                    + rc.getResourceAmount(ResourceType.ELIXIR);
+
+            if (total < 12) {
+                heur_dir = heur_dir.opposite();
+            } else if (total < 25) {
+                heur_dir = Direction.CENTER;
+            }
+
+            MapLocation heur_loc = targetLocation.add(heur_dir);
+
+            float r = rng.nextFloat();
+
+            if (r < 0.33) {
+                heur_loc = heur_loc.add(hqLocation.directionTo(targetLocation).opposite());
+            } else if (r < 0.66) {
+                heur_loc = heur_loc.add(hqLocation.directionTo(targetLocation));
+            }
+
+            Direction dir = rc_loc.directionTo(heur_loc);
+
+            if (dir != Direction.CENTER && rc_loc.add(dir).isAdjacentTo(targetLocation) && rc.canMove(dir)) {
+                rc.move(dir);
+                super_recalibrate();
             }
         }
 
@@ -345,11 +376,10 @@ public class Carrier extends Robot {
                     }
                 }
             }
-            
+
             if ((closestThreat != null) && (rc.canAttack(closestThreat.getLocation()))) {
                 rc.attack(closestThreat.getLocation());
-            }
-            else {
+            } else {
                 // try surrounding 8 squares to dump, should be space
                 for (Direction d : Constants.ALL_DIRECTIONS) {
                     MapLocation mp = rc_loc.add(d);
