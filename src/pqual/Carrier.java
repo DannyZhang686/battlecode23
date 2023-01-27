@@ -10,7 +10,7 @@ public class Carrier extends Robot {
     boolean relaxedPathfinding;
 
     // Location of HQ closest to the spawn of this launcher
-    final MapLocation hqLocation;
+    MapLocation hqLocation;
 
     HQCarrierOrder hqOrder;
     MapLocation hqTargetLocation; // A location referenced by hqOrder
@@ -85,35 +85,18 @@ public class Carrier extends Robot {
         TOURIST_DESTINATIONS[7] = new MapLocation(rc.getMapWidth() / 2, rc.getMapHeight() - 1);
         TOURIST_DESTINATIONS[8] = new MapLocation(rc.getMapWidth() - 1, rc.getMapHeight() - 1);
 
-        MapLocation closestHQLocation = null;
-        int closestHQDistance = 100;
-
-        for (RobotInfo info : this.rc.senseNearbyRobots()) {
-            if (info.getType() == RobotType.HEADQUARTERS) {
-                int theDist = RobotMath.getChessboardDistance(info.getLocation(), rc_loc);
-                if (theDist < closestHQDistance) {
-                    closestHQDistance = theDist;
-                    closestHQLocation = info.getLocation();
-                }
-            }
-        }
-        hqLocation = closestHQLocation;
+        hqLocation = null;
     }
 
-    @Override
-    public void run() throws GameActionException {
-        rc.setIndicatorString(String.valueOf(hqOrder));
-
-        runSetup();
-
-        if (hqOrder != HQCarrierOrder.CARRY_ANCHOR) {
-            int amount_adam = this.rc.getResourceAmount(ResourceType.ADAMANTIUM);
-            int amount_elix = this.rc.getResourceAmount(ResourceType.ELIXIR);
-            int amount_mana = this.rc.getResourceAmount(ResourceType.MANA);
+    private void transferResourcesAndTakeAnchor() throws GameActionException {
+        if (hqOrder != HQCarrierOrder.CARRY_ANCHOR && hqLocation != null) {
+            int amount_adam = rc.getResourceAmount(ResourceType.ADAMANTIUM);
+            int amount_elix = rc.getResourceAmount(ResourceType.ELIXIR);
+            int amount_mana = rc.getResourceAmount(ResourceType.MANA);
 
             if (amount_adam > 38
-                    && this.rc.canTransferResource(this.hqLocation, ResourceType.ADAMANTIUM, amount_adam)) {
-                this.rc.transferResource(this.hqLocation, ResourceType.ADAMANTIUM, amount_adam);
+                    && rc.canTransferResource(hqLocation, ResourceType.ADAMANTIUM, amount_adam)) {
+                rc.transferResource(hqLocation, ResourceType.ADAMANTIUM, amount_adam);
                 if (rng.nextInt(Math.max((100 - rc.getRoundNum()) / 10, 4)) == 0) {
                     // Chance of switching away from adamantium
                     avoidWellLocation = hqTargetLocation;
@@ -122,13 +105,13 @@ public class Carrier extends Robot {
                 amount_adam = 0;
             }
 
-            if (amount_elix > 38 && this.rc.canTransferResource(this.hqLocation, ResourceType.ELIXIR, amount_elix)) {
-                this.rc.transferResource(this.hqLocation, ResourceType.ELIXIR, amount_elix);
+            if (amount_elix > 38 && rc.canTransferResource(hqLocation, ResourceType.ELIXIR, amount_elix)) {
+                rc.transferResource(hqLocation, ResourceType.ELIXIR, amount_elix);
                 amount_elix = 0;
             }
 
-            if (amount_mana > 38 && this.rc.canTransferResource(this.hqLocation, ResourceType.MANA, amount_mana)) {
-                this.rc.transferResource(this.hqLocation, ResourceType.MANA, amount_mana);
+            if (amount_mana > 38 && rc.canTransferResource(hqLocation, ResourceType.MANA, amount_mana)) {
+                rc.transferResource(hqLocation, ResourceType.MANA, amount_mana);
                 amount_mana = 0;
             }
 
@@ -176,6 +159,32 @@ public class Carrier extends Robot {
                 }
             }
         }
+    }
+
+    private void updateLocations() throws GameActionException {
+        int hqLocationDistance = hqLocation == null ? 1000 : RobotMath.getChessboardDistance(hqLocation, rc_loc);
+
+        for (RobotInfo info : this.rc.senseNearbyRobots()) {
+            if (info.getType() == RobotType.HEADQUARTERS) {
+                int dist = RobotMath.getChessboardDistance(info.getLocation(), rc_loc);
+
+                if (dist < hqLocationDistance) {
+                    hqLocationDistance = dist;
+                    hqLocation = info.getLocation();
+                }
+            }
+        }
+    }
+
+    @Override
+    public void run() throws GameActionException {
+        rc.setIndicatorString(String.valueOf(hqOrder));
+
+        runSetup();
+
+        updateLocations();
+
+        transferResourcesAndTakeAnchor();
 
         avoidThreats();
 
@@ -298,7 +307,7 @@ public class Carrier extends Robot {
         }
 
         if (hqOrder != HQCarrierOrder.CARRY_ANCHOR &&
-                rc_loc.isAdjacentTo(targetLocation)) {
+                rc_loc.isAdjacentTo(targetLocation) && hqLocation != null) {
             Direction heur_dir = hqLocation.directionTo(targetLocation).rotateRight().rotateRight().rotateRight();
 
             int total = rc.getResourceAmount(ResourceType.ADAMANTIUM) + rc.getResourceAmount(ResourceType.MANA)
