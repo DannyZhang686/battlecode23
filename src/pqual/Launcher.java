@@ -115,7 +115,7 @@ public class Launcher extends Robot {
         } else if ((((enemyRobots.length - nearbyEnemyHQCount < 5) &&
                      (enemyRobots.length > nearbyEnemyHQCount)) ||
                     (friendlyRobots.length > 4) ||
-                    (rc.getRoundNum() % 10 == 0)) &&
+                    (Math.abs(rc.getRoundNum()) % 10 == 0)) &&
                     (rc.isActionReady())) {
             // If enemies in vision range in a "small" fight, step and shoot (if possible)
             if (rc.isMovementReady()) {
