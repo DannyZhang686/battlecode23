@@ -112,8 +112,10 @@ public class Launcher extends Robot {
             shoot();
             recalibrate();
             // Later code tries to retreat out of range
-        } else if ((((enemyRobots.length - nearbyEnemyHQCount < 3) && (friendlyRobots.length < 3)) ||
-                    (rng.nextInt(4) == 0)) &&
+        } else if ((((enemyRobots.length - nearbyEnemyHQCount < 5) &&
+                     (enemyRobots.length > nearbyEnemyHQCount)) ||
+                    (friendlyRobots.length > 5) ||
+                    (rng.nextInt(10) == 0)) &&
                     (rc.isActionReady())) {
             // If enemies in vision range in a "small" fight, step and shoot (if possible)
             if (rc.isMovementReady()) {
@@ -130,7 +132,8 @@ public class Launcher extends Robot {
         if ((enemyRobots.length == nearbyEnemyHQCount) && (rc.isMovementReady())) {
             macroMove();
             recalibrate();
-        } else if ((enemyRobots.length > nearbyEnemyHQCount) && (rc.isMovementReady())) {
+        } else if ((enemyRobots.length > nearbyEnemyHQCount) &&
+                   (rc.isMovementReady())) {
             // Back away
             microMove(false);
             recalibrate();

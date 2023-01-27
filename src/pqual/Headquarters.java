@@ -8,8 +8,6 @@ public class Headquarters extends Robot {
     private final Team friendlyTeam, enemyTeam;
 
     // Initialize constants
-    private int spawnedCarriers = 0;
-    private int spawnedLaunchers = 0;
     WellInfo[] nearbyWells;
     WellInfo[] nearbyAdamantiumWells, nearbyManaWells;
     int allowedCarriersInRange;
@@ -192,14 +190,12 @@ public class Headquarters extends Robot {
             MapLocation location = rc.getLocation().translate(dx, dy);
             if (rc.canBuildRobot(RobotType.CARRIER, location)) {
                 rc.buildRobot(RobotType.CARRIER, location);
-                this.spawnedCarriers++;
                 return;
             }
         }
         for (MapLocation location : locations) {
             if (rc.canBuildRobot(RobotType.CARRIER, location)) {
                 rc.buildRobot(RobotType.CARRIER, location);
-                this.spawnedCarriers++;
                 return;
             }
         }
@@ -233,7 +229,6 @@ public class Headquarters extends Robot {
         }
         if (rc.canBuildRobot(RobotType.LAUNCHER, spawnLocation)) {
             rc.buildRobot(RobotType.LAUNCHER, spawnLocation);
-            this.spawnedLaunchers++;
             return rc.senseRobotAtLocation(spawnLocation).getID();
         }
         return 0;
@@ -254,7 +249,6 @@ public class Headquarters extends Robot {
         MapLocation loc = RobotMath.closestActionablePlacement(rc, rc_loc, m, Constants.HQ_ACTION_RADIUS);
         if (loc != null && rc.canBuildRobot(RobotType.CARRIER, loc)) {
             rc.buildRobot(RobotType.CARRIER, loc);
-            spawnedCarriers++;
             return true;
         }
         return false;
